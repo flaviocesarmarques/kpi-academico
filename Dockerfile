@@ -65,6 +65,12 @@ RUN apt-get update && \
     apt-get upgrade -y --no-install-recommends && \
     rm -rf /var/lib/apt/lists/*
 
+# A imagem final não precisa de gerenciador de pacotes Python: as dependências
+# já vêm prontas do estágio "builder". O pip da imagem base embute cópias
+# próprias (vendored) de urllib3, msgpack e setuptools, que o Trivy acusou com
+# CVEs altas. Removê-lo reduz a superfície de ataque e o tamanho da imagem.
+RUN python -m pip uninstall --yes pip
+
 # Usuário sem privilégios, UID/GID fixos (10001) — nunca rode como root.
 RUN groupadd --gid 10001 app && \
     useradd --uid 10001 --gid app --no-create-home --shell /usr/sbin/nologin app
