@@ -1,0 +1,37 @@
+name: Bug
+description: Algo não funciona como deveria
+title: "fix: "
+labels: [bug, triagem]
+body:
+  - type: textarea
+    id: descricao
+    attributes:
+      label: O que aconteceu?
+      description: Comportamento observado x esperado.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduzir
+    attributes:
+      label: Como reproduzir
+      placeholder: |
+        1. Chamar GET /api/v1/cursos/CC/painel?periodo=2026.1
+        2. ...
+    validations:
+      required: true
+  - type: input
+    id: versao
+    attributes:
+      label: Versão
+      description: Veja em /health/live
+  - type: dropdown
+    id: ambiente
+    attributes:
+      label: Ambiente
+      options: [local, dev, produção]
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs relevantes
+      description: Sem dados pessoais de estudantes (LGPD) e sem segredos.
+      render: json

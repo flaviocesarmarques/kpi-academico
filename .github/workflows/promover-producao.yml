@@ -1,0 +1,62 @@
+# =============================================================================
+# Promoção para PRODUÇÃO (etapa 7) — mesmo artefato, outro ambiente
+# -----------------------------------------------------------------------------
+# Princípio "build once, deploy many": NÃO se reconstrói a imagem para produção;
+# promove-se exatamente a imagem já validada em dev (mesma versão/digest).
+#
+# Disparo manual (Actions → Promover para produção → Run workflow), protegido
+# pelo GitHub Environment "producao": configure em Settings → Environments
+# revisores obrigatórios (ex.: coordenação + NOC) e restrinja à branch main.
+# O resultado é um PR GitOps; o merge dispara o canary do Argo Rollouts.
+# =============================================================================
+name: Promover para produção
+
+on:
+  workflow_dispatch:
+    inputs:
+      versao:
+        description: "Versão a promover (ex.: 1.4.0) — deve estar rodando em dev"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  promover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: producao # ← aprovação humana acontece aqui
+    permissions:
+      contents: write
+      pull-requests: write
+      packages: read
+      id-token: write
+    env:
+      VERSAO: ${{ inputs.versao }}
+      IMAGEM: ghcr.io/${{ github.repository_owner }}/kpi-academico
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Normalizar nome da imagem (minúsculas)
+        run: echo "IMAGEM=${IMAGEM,,}" >> "$GITHUB_ENV"
+      - name: Validar formato da versão (evita injeção via input)
+        run: |
+          [[ "$VERSAO" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::Versão inválida"; exit 1; }
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      - name: Verificar assinatura antes de promover (só imagem do NOSSO pipeline)
+        run: |
+          cosign verify "${IMAGEM}:${VERSAO}" \
+            --certificate-identity-regexp "^https://github.com/${GITHUB_REPOSITORY}/" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com > /dev/null
+      - name: Atualizar overlay de produção
+        run: yq -i '(.images[] | select(.name == "kpi-academico")).newTag = strenv(VERSAO)' deploy/overlays/prod/kustomization.yaml
+      - uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          sign-commits: true # commits assinados pelo GitHub (exigido pelo ruleset)
+          branch: gitops/prod-${{ inputs.versao }}
+          commit-message: "chore(deploy): prod -> ${{ inputs.versao }}"
+          title: "chore(deploy): prod -> ${{ inputs.versao }}"
+          body: |
+            Promove a versão **${{ inputs.versao }}** (assinatura verificada) para **produção**.
+            O merge inicia o deploy canary (Argo Rollouts) com análise automática de métricas.
+          labels: deploy, producao

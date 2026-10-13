@@ -1,0 +1,25 @@
+# Dois Services: o Argo Rollouts ajusta os seletores durante o canary
+# para que "kpi-api" aponte para a versão estável e "kpi-api-canary" para a nova.
+apiVersion: v1
+kind: Service
+metadata:
+  name: kpi-api
+spec:
+  selector:
+    app.kubernetes.io/name: kpi-api
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kpi-api-canary
+spec:
+  selector:
+    app.kubernetes.io/name: kpi-api
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

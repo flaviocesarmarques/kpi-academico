@@ -1,0 +1,183 @@
+# =============================================================================
+# CI — Integração Contínua (etapas 2 e 3 da trilha)
+# -----------------------------------------------------------------------------
+# Roda em todo Pull Request e em todo push na main. Nenhum código entra na main
+# sem passar por aqui (configure os jobs como "status checks obrigatórios" no
+# ruleset da branch — veja .github/rulesets/main.json).
+#
+# Boas práticas de pipeline aplicadas neste arquivo:
+#   • permissions mínimas (contents: read) — o GITHUB_TOKEN só pode ler.
+#   • Actions de terceiros fixadas por SHA de commit (tag pode ser movida por
+#     um atacante; SHA não). O comentário indica a versão; o Dependabot atualiza.
+#   • harden-runner: audita as conexões de rede feitas durante o job
+#     (detecta exfiltração em ataques à cadeia de suprimentos).
+#   • concurrency: cancela execuções antigas do mesmo PR (economia de minutos).
+#   • timeout-minutes: um job travado não consome 6h de runner.
+#   • Jobs paralelos e independentes → feedback rápido.
+#   • Matriz de versões de Python → compatibilidade garantida.
+# =============================================================================
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Mesmos hooks do pre-commit local — garante a regra mesmo com --no-verify.
+  # ---------------------------------------------------------------------------
+  pre-commit:
+    name: Pre-commit (lint, formatação, segredos)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit # depois de observar o tráfego, troque para "block" + allowed-endpoints
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false # não deixa o token gravado no .git/config
+      - uses: ./.github/actions/setup-python-uv
+      - name: Rodar hooks
+        env:
+          SKIP: no-commit-to-branch # regra útil só na máquina do desenvolvedor
+        run: uv run pre-commit run --all-files --show-diff-on-failure
+
+  tipos:
+    name: Checagem de tipos (mypy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-python-uv
+      - run: uv run mypy
+
+  # ---------------------------------------------------------------------------
+  # Testes unitários + API + migrações + integração com PostgreSQL real.
+  # ---------------------------------------------------------------------------
+  testes:
+    name: Testes (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false # mostra todas as versões que falham, não só a primeira
+      matrix:
+        python: ["3.12", "3.13"]
+    steps:
+      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-python-uv
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Testes com cobertura (falha abaixo do mínimo definido no pyproject)
+        # O runner tem Docker → os testes Testcontainers (PostgreSQL) também rodam.
+        run: uv run pytest --junitxml=reports/junit.xml
+      - name: Publicar relatórios (cobertura e JUnit)
+        if: always() && matrix.python == '3.13'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: relatorios-testes
+          path: |
+            coverage.xml
+            reports/junit.xml
+          retention-days: 14
+
+  # ---------------------------------------------------------------------------
+  # Qualidade: SonarQube Cloud (gratuito para repositório público).
+  # Quality Gate: bugs, vulnerabilidades, code smells, duplicação e cobertura
+  # do CÓDIGO NOVO. Ative em sonarcloud.io e crie o segredo SONAR_TOKEN.
+  # Sem o segredo, o job é pulado (o pipeline não quebra para quem está começando).
+  # ---------------------------------------------------------------------------
+  sonar:
+    name: Qualidade (SonarQube Cloud)
+    needs: testes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: env.SONAR_TOKEN != ''
+        with:
+          fetch-depth: 0 # histórico completo: necessário para análise de "código novo"
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: env.SONAR_TOKEN != ''
+        with:
+          name: relatorios-testes
+      - name: Análise SonarQube
+        if: env.SONAR_TOKEN != ''
+        uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0
+
+  # ---------------------------------------------------------------------------
+  # Revisão de dependências do PR: bloqueia novas libs com CVE alta ou com
+  # licença incompatível ANTES do merge.
+  # ---------------------------------------------------------------------------
+  revisao-dependencias:
+    name: Revisão de dependências
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write # para comentar o resumo no PR
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high
+          deny-licenses: GPL-3.0-only, AGPL-3.0-only # ajuste à política jurídica da IES
+          comment-summary-in-pr: on-failure
+
+  # ---------------------------------------------------------------------------
+  # Build da imagem no PR (sem publicar): garante que o Dockerfile funciona e
+  # que a imagem não tem vulnerabilidades críticas antes do merge.
+  # ---------------------------------------------------------------------------
+  imagem:
+    name: Build e scan da imagem (sem publicar)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Build (cache no GitHub Actions)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          load: true
+          push: false
+          tags: kpi-academico:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Scan da imagem com Trivy (falha em CRITICAL/HIGH com correção disponível)
+        # Trivy executado via imagem oficial com versão fixa, em vez de uma Action
+        # de terceiros: menos código externo com acesso ao seu pipeline.
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:0.75.0 image --exit-code 1 --ignore-unfixed \
+            --severity CRITICAL,HIGH --no-progress kpi-academico:ci

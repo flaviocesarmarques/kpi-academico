@@ -1,0 +1,26 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "packages": {
+    ".": {
+      "release-type": "python",
+      "package-name": "kpi-academico",
+      "include-component-in-tag": false,
+      "bump-minor-pre-major": true,
+      "bump-patch-for-minor-pre-major": false,
+      "changelog-sections": [
+        { "type": "feat", "section": "Novidades" },
+        { "type": "fix", "section": "Correções" },
+        { "type": "perf", "section": "Desempenho" },
+        { "type": "refactor", "section": "Refatoração", "hidden": false },
+        { "type": "docs", "section": "Documentação", "hidden": false },
+        { "type": "build", "section": "Build e dependências", "hidden": false },
+        { "type": "ci", "section": "CI/CD", "hidden": true },
+        { "type": "test", "section": "Testes", "hidden": true },
+        { "type": "chore", "section": "Manutenção", "hidden": true }
+      ],
+      "extra-files": [
+        { "type": "toml", "path": "uv.lock", "jsonpath": "$.package[?(@.name.value=='kpi-academico')].version" }
+      ]
+    }
+  }
+}

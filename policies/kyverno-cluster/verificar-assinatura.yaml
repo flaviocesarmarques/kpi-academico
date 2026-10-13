@@ -1,0 +1,44 @@
+# =============================================================================
+# Verificação de ASSINATURA de imagens no cluster (cadeia de suprimentos)
+# -----------------------------------------------------------------------------
+# Só aceita imagens da API assinadas pelo workflow release.yml DESTE
+# repositório (Cosign keyless + log de transparência Rekor). Uma imagem
+# construída em outro lugar, mesmo com o mesmo nome, é recusada.
+#
+# Fica separada das demais porque consulta o registro de imagens e o
+# Sigstore pela rede; por isso não roda no teste offline do PR (iac.yml).
+# Substitua flaviocesarmarques (scripts/configurar-repo.sh faz isso).
+# =============================================================================
+apiVersion: policies.kyverno.io/v1
+kind: ImageValidatingPolicy
+metadata:
+  name: verificar-assinatura-imagens
+  annotations:
+    policies.kyverno.io/title: Verificar assinatura Cosign
+    policies.kyverno.io/severity: high
+spec:
+  validationActions: [Deny]
+  webhookConfiguration:
+    timeoutSeconds: 30
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+  matchImageReferences:
+    - glob: "ghcr.io/flaviocesarmarques/kpi-academico*"
+  attestors:
+    - name: pipelineRelease
+      cosign:
+        keyless:
+          identities:
+            - issuer: https://token.actions.githubusercontent.com
+              subjectRegExp: "^https://github.com/flaviocesarmarques/kpi-academico/\\.github/workflows/release\\.yml@refs/heads/main$"
+        ctlog:
+          url: https://rekor.sigstore.dev
+  validations:
+    - expression: >-
+        images.containers.map(image,
+          verifyImageSignatures(image, [attestors.pipelineRelease])).all(e, e > 0)
+      message: "Imagem sem assinatura válida do pipeline de release deste repositório."

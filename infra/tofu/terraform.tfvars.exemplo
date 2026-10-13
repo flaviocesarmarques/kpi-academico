@@ -1,0 +1,5 @@
+# Copie para terraform.tfvars e ajuste. Máquina com pouca memória? Desligue componentes:
+# habilitar_observabilidade = false
+# habilitar_caos            = false
+contexto = "k3d-kpi"
+dominio  = "localhost"

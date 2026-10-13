@@ -1,0 +1,6 @@
+# Chaos Mesh no k3s: o runtime é containerd com socket em caminho próprio do k3s.
+chaosDaemon:
+  runtime: containerd
+  socketPath: /run/k3s/containerd/containerd.sock
+dashboard:
+  securityMode: true # exige token para criar experimentos pelo painel

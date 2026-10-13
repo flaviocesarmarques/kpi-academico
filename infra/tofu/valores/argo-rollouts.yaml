@@ -1,0 +1,10 @@
+# Argo Rollouts — entrega progressiva (canary / blue-green).
+# O dashboard permite acompanhar o canary passo a passo:
+#   kubectl -n argo-rollouts port-forward svc/argo-rollouts-dashboard 3100:3100
+dashboard:
+  enabled: true
+controller:
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true

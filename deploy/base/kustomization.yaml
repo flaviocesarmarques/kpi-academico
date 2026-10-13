@@ -1,0 +1,54 @@
+# =============================================================================
+# Kustomize — BASE dos manifestos Kubernetes (etapa 7)
+# -----------------------------------------------------------------------------
+# A base descreve a aplicação UMA vez; os overlays (dev, prod) só declaram as
+# DIFERENÇAS (réplicas, domínio, versão). Nada de copiar YAML entre ambientes.
+#
+#   deploy/
+#   ├── base/            ← este diretório
+#   ├── overlays/dev/    ← kpi-dev: 1 réplica, sincronização automática
+#   ├── overlays/prod/   ← kpi-prod: 3 réplicas, HPA, canary com pausa manual
+#   ├── secrets/         ← Secrets criptografados com SOPS (age)
+#   └── argocd/          ← AppProject e Applications do Argo CD
+#
+# Renderizar localmente:  kubectl kustomize deploy/overlays/dev
+# Ordem de sincronização no Argo CD (sync waves):
+#   0 PostgreSQL → 1 Job de migração → 2 Rollout da API
+# =============================================================================
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: kpi-academico
+      app.kubernetes.io/managed-by: argocd
+    includeSelectors: false # seletores são imutáveis: não os altere via rótulos comuns
+    includeTemplates: true  # os pods também recebem os rótulos (usados pelo Kyverno)
+
+resources:
+  - configmap.yaml
+  - postgres.yaml
+  - migracao-job.yaml
+  - rollout.yaml
+  - services.yaml
+  - ingress.yaml
+  - networkpolicy.yaml
+  - pdb.yaml
+  - podmonitor.yaml
+  - alertas.yaml
+  - analise-canary.yaml
+
+# Dashboard do Grafana como código (carregado pelo sidecar do Grafana).
+configMapGenerator:
+  - name: kpi-dashboard
+    files:
+      - grafana-dashboard.json
+    options:
+      disableNameSuffixHash: true
+      labels:
+        grafana_dashboard: "1"
+
+images:
+  - name: kpi-academico
+    newName: ghcr.io/flaviocesarmarques/kpi-academico # ajustado por scripts/configurar-repo.sh
+    newTag: 0.1.0

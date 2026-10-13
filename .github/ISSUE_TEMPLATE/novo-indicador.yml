@@ -1,0 +1,44 @@
+name: Novo indicador (KPI)
+description: Propor um novo indicador acadêmico ou alterar um existente
+title: "feat(kpi): "
+labels: [indicador, triagem]
+body:
+  - type: input
+    id: nome
+    attributes:
+      label: Nome do indicador
+      placeholder: Taxa de evasão no 1º ano
+    validations:
+      required: true
+  - type: dropdown
+    id: dimensao
+    attributes:
+      label: Dimensão
+      options:
+        - Formação e Currículo
+        - Trajetória do Estudante
+        - Corpo Docente e Inovação
+        - Qualidade, Avaliação e Gestão
+    validations:
+      required: true
+  - type: textarea
+    id: formula
+    attributes:
+      label: Fórmula e fonte do dado
+      description: Como é calculado, de qual sistema vem e com que periodicidade.
+    validations:
+      required: true
+  - type: input
+    id: meta
+    attributes:
+      label: Meta e polaridade
+      placeholder: "≤ 12% (menor é melhor)"
+  - type: input
+    id: inep
+    attributes:
+      label: Relação com o instrumento de avaliação do Inep / PDI
+  - type: textarea
+    id: justificativa
+    attributes:
+      label: Que decisão este indicador apoia?
+      description: Indicador que não muda nenhuma decisão é só número.

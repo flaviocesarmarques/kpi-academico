@@ -1,0 +1,11 @@
+# Só o necessário entra no contexto de build: builds mais rápidos e
+# nenhum segredo/lixo local acaba dentro da imagem.
+*
+!pyproject.toml
+!uv.lock
+!README.md
+!LICENSE
+!alembic.ini
+!src/
+!migrations/
+**/__pycache__

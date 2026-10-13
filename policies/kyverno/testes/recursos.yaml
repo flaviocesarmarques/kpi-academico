@@ -1,0 +1,46 @@
+# Recursos de TESTE das políticas: um exemplo conforme e outro que viola as regras.
+# Política também é código e também precisa de teste (incluindo o caso negativo).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: conforme
+  labels:
+    app.kubernetes.io/part-of: kpi-academico
+spec:
+  selector:
+    matchLabels: { app: conforme }
+  template:
+    metadata:
+      labels: { app: conforme }
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: app
+          image: ghcr.io/exemplo/app:1.0.0
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { memory: 64Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inseguro
+  labels:
+    app.kubernetes.io/part-of: kpi-academico
+spec:
+  selector:
+    matchLabels: { app: inseguro }
+  template:
+    metadata:
+      labels: { app: inseguro }
+    spec:
+      containers:
+        - name: app
+          image: docker.io/library/nginx:latest

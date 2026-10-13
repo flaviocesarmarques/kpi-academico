@@ -1,0 +1,42 @@
+# =============================================================================
+# Overlay DEV — atualizado AUTOMATICAMENTE pelo workflow release.yml (PR GitOps)
+# a cada nova versão. O Argo CD sincroniza o cluster após o merge.
+# =============================================================================
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: kpi-dev
+
+resources:
+  - ../../base
+
+images:
+  - name: kpi-academico
+    newName: ghcr.io/flaviocesarmarques/kpi-academico
+    newTag: 0.1.0 # ← alterado pelo pipeline; não edite à mão
+
+patches:
+  - target: { kind: Rollout, name: kpi-api }
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 1
+      # Em dev o canary é rápido: feedback em segundos, não em minutos.
+      - op: replace
+        path: /spec/strategy/canary/steps
+        value:
+          - setWeight: 50
+          - pause: { duration: 30s }
+  - target: { kind: Ingress, name: kpi-api }
+    patch: |
+      - op: replace
+        path: /spec/rules/0/host
+        value: kpi-dev.localhost
+  - target: { kind: ConfigMap, name: kpi-config }
+    patch: |
+      - op: replace
+        path: /data/KPI_LOG_LEVEL
+        value: DEBUG
+      # Funcionalidades novas ligadas primeiro em dev (feature flag local).
+      - op: replace
+        path: /data/KPI_FLAG_PAINEL_TENDENCIA
+        value: "true"

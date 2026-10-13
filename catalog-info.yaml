@@ -1,0 +1,41 @@
+# =============================================================================
+# Backstage — catálogo de serviços (portal do desenvolvedor), etapa 10
+# -----------------------------------------------------------------------------
+# Se a instituição usar o Backstage (open source, CNCF), este arquivo registra
+# o serviço: dono, ciclo de vida, documentação, API e dependências.
+# Mesmo sem Backstage, documenta em um só lugar "quem cuida do quê".
+# =============================================================================
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: kpi-academico
+  title: KPI Acadêmico
+  description: API de indicadores acadêmicos por curso e período, com semáforo de metas.
+  annotations:
+    github.com/project-slug: flaviocesarmarques/kpi-academico
+    backstage.io/techdocs-ref: dir:.
+    argocd/app-name: kpi-prod
+  tags: [python, fastapi, indicadores]
+  links:
+    - url: http://grafana.localhost:8080/d/kpi-academico-api
+      title: Dashboard
+spec:
+  type: service
+  lifecycle: experimental
+  owner: coordenacao-ti
+  system: gestao-academica
+  providesApis: [kpi-academico-api]
+  dependsOn: [resource:kpi-db]
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: kpi-academico-api
+  description: Contrato OpenAPI da API v1
+spec:
+  type: openapi
+  lifecycle: experimental
+  owner: coordenacao-ti
+  system: gestao-academica
+  definition:
+    $text: http://kpi.localhost:8080/openapi.json

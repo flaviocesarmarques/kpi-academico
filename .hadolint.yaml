@@ -1,0 +1,6 @@
+# Hadolint — linter de Dockerfile.
+# Falha em "warning" ou pior; ajuste a régua aqui (nunca desligando regras sem justificativa).
+failure-threshold: warning
+trustedRegistries:
+  - docker.io
+  - ghcr.io

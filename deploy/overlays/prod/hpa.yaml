@@ -1,0 +1,23 @@
+# Escala horizontal automática em produção (ex.: picos na divulgação de resultados).
+# Funciona com Rollout porque o Rollout expõe o subrecurso "scale".
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: kpi-api
+spec:
+  scaleTargetRef:
+    apiVersion: argoproj.io/v1alpha1
+    kind: Rollout
+    name: kpi-api
+  minReplicas: 3
+  maxReplicas: 8
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300 # evita "efeito sanfona"

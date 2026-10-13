@@ -1,0 +1,8 @@
+# Regras do OWASP ZAP: <id_regra>\t<IGNORE|INFO|WARN|FAIL>\t<justificativa>
+# Promova para FAIL as regras que NUNCA podem ocorrer. Toda IGNORE precisa de justificativa.
+# Lista de IDs: https://www.zaproxy.org/docs/alerts/
+40018	FAIL	(SQL Injection) — inaceitável em qualquer circunstância
+40012	FAIL	(XSS refletido)
+90019	FAIL	(Server Side Include)
+10021	WARN	(X-Content-Type-Options ausente) — tratar no ingress/gateway
+10049	IGNORE	(Conteúdo não armazenável em cache) — API dinâmica, comportamento esperado

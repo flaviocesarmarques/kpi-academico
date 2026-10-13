@@ -1,0 +1,193 @@
+# =============================================================================
+# Release + Entrega Contínua (etapas 4, 5 e início da 7)
+# -----------------------------------------------------------------------------
+# Fluxo completo, 100% automatizado a partir de Conventional Commits:
+#
+#   push na main
+#     └─ release-please: abre/atualiza um "PR de release" (versão + CHANGELOG)
+#   merge do PR de release
+#     ├─ cria tag vX.Y.Z e GitHub Release
+#     ├─ build da imagem multi-arquitetura → GHCR
+#     ├─ SBOM (Syft, SPDX)  → anexado à release e atestado
+#     ├─ Assinatura keyless (Cosign + OIDC do GitHub, sem chaves para guardar)
+#     ├─ Atestado de PROVENIÊNCIA SLSA (quem, onde e como a imagem foi gerada)
+#     ├─ Scan da imagem publicada (Trivy)
+#     └─ PR GitOps: atualiza a tag da imagem em deploy/overlays/dev
+#            → Argo CD detecta a mudança no Git e faz o deploy (etapa 7)
+#
+# Verificar a assinatura de qualquer imagem publicada:
+#   cosign verify ghcr.io/<owner>/kpi-academico:vX.Y.Z \
+#     --certificate-identity-regexp 'https://github.com/<owner>/kpi-academico/.*' \
+#     --certificate-oidc-issuer https://token.actions.githubusercontent.com
+#   gh attestation verify oci://ghcr.io/<owner>/kpi-academico:vX.Y.Z --owner <owner>
+#
+# DICA: PRs abertos com o GITHUB_TOKEN não disparam outros workflows (proteção
+# do GitHub contra loops). Para que o CI rode nos PRs de release/GitOps, crie
+# um GitHub App, guarde APP_ID/APP_PRIVATE_KEY e gere o token com
+# actions/create-github-app-token. Sem isso, rode o CI manualmente nesses PRs.
+# =============================================================================
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release # nunca duas releases em paralelo
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGEM: ghcr.io/${{ github.repository_owner }}/kpi-academico
+
+jobs:
+  release-please:
+    name: Versionamento semântico (release-please)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      criada: ${{ steps.rp.outputs.release_created }}
+      tag: ${{ steps.rp.outputs.tag_name }}
+      versao: ${{ steps.rp.outputs.version }}
+    steps:
+      - id: rp
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  publicar-imagem:
+    name: Build, SBOM, assinatura e proveniência
+    needs: release-please
+    if: needs.release-please.outputs.criada == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: release # permite exigir aprovação/regras no ambiente "release"
+    permissions:
+      contents: write # anexar SBOM à release
+      packages: write # publicar no GHCR
+      id-token: write # OIDC: assinatura keyless e atestados
+      attestations: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Normalizar nome da imagem (o GHCR exige letras minúsculas)
+        run: echo "IMAGEM=${IMAGEM,,}" >> "$GITHUB_ENV"
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Login no GHCR (token efêmero do próprio job; nenhuma senha guardada)
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Metadados (tags SemVer e labels OCI)
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.IMAGEM }}
+          # Tags IMUTÁVEIS por versão. Evite "latest" em deploy: não diz o que está rodando.
+          tags: |
+            type=semver,pattern={{version}},value=${{ needs.release-please.outputs.tag }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.release-please.outputs.tag }}
+            type=sha,format=long
+      - name: Build e push (amd64 + arm64)
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ needs.release-please.outputs.versao }}
+            REVISION=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # Atestados nativos do BuildKit (gravados junto da imagem). Os atestados
+          # do GitHub mais abaixo complementam: verificáveis com `gh attestation verify`.
+          provenance: mode=max
+          sbom: true
+
+      - name: Gerar SBOM (Syft, formato SPDX)
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          image: ${{ env.IMAGEM }}@${{ steps.build.outputs.digest }}
+          format: spdx-json
+          output-file: sbom.spdx.json
+          upload-release-assets: false
+      - name: Anexar SBOM à GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release-please.outputs.tag }}
+        run: gh release upload "$TAG" sbom.spdx.json --clobber --repo "$GITHUB_REPOSITORY"
+
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      - name: Assinar imagem (keyless — certificado efêmero via OIDC)
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        # Assina o DIGEST (imutável), nunca a tag (mutável).
+        run: cosign sign --yes "${IMAGEM}@${DIGEST}"
+
+      - name: Atestado de proveniência (SLSA build provenance)
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGEM }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+      - name: Atestado do SBOM
+        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-name: ${{ env.IMAGEM }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          sbom-path: sbom.spdx.json
+          push-to-registry: true
+
+      - name: Scan da imagem publicada (Trivy)
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          docker run --rm aquasec/trivy:0.75.0 image --exit-code 1 --ignore-unfixed \
+            --severity CRITICAL --no-progress "${IMAGEM}@${DIGEST}"
+
+  gitops-dev:
+    name: GitOps — atualizar ambiente dev
+    needs: [release-please, publicar-imagem]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Atualizar tag da imagem no overlay de dev
+        env:
+          TAG: ${{ needs.release-please.outputs.versao }}
+        # yq já vem instalado nos runners ubuntu-latest.
+        run: yq -i '(.images[] | select(.name == "kpi-academico")).newTag = strenv(TAG)' deploy/overlays/dev/kustomization.yaml
+      - name: Abrir PR de deploy (revisável e auditável — o Git é a fonte da verdade)
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          sign-commits: true # commits assinados pelo GitHub (exigido pelo ruleset)
+          branch: gitops/dev-${{ needs.release-please.outputs.versao }}
+          commit-message: "chore(deploy): dev -> ${{ needs.release-please.outputs.versao }}"
+          title: "chore(deploy): dev -> ${{ needs.release-please.outputs.versao }}"
+          body: |
+            Atualiza o ambiente **dev** para a imagem `${{ needs.release-please.outputs.tag }}`
+            (digest `${{ needs.publicar-imagem.outputs.digest }}`).
+            Ao fazer o merge, o Argo CD sincroniza o cluster automaticamente.
+          labels: deploy, dev

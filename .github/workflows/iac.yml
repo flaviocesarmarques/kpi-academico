@@ -1,0 +1,92 @@
+# =============================================================================
+# Validação de Infraestrutura como Código e manifestos (etapas 6 e 7)
+# -----------------------------------------------------------------------------
+# Infra é código → recebe o mesmo rigor: formatação, lint, validação de
+# schema e testes de política, TUDO antes do merge.
+#
+#   OpenTofu   → fmt, validate, TFLint
+#   Ansible    → ansible-lint
+#   Kubernetes → kustomize build + kubeconform (schemas) + Kyverno CLI (políticas)
+#
+# Só roda quando arquivos de infra mudam (filtro "paths") — CI mais rápido.
+# =============================================================================
+name: IaC e manifestos
+
+on:
+  pull_request:
+    paths: ["infra/**", "deploy/**", "policies/**", ".github/workflows/iac.yml"]
+  push:
+    branches: [main]
+    paths: ["infra/**", "deploy/**", "policies/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  opentofu:
+    name: OpenTofu (fmt, validate, tflint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: infra/tofu
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: opentofu/setup-opentofu@a1320f892987e89d278cc92dc5adc984fb93aca4 # v2.0.2
+        with:
+          tofu_version: 1.13.1
+      - run: tofu fmt -check -recursive
+      - run: tofu init -backend=false
+      - run: tofu validate
+      - uses: terraform-linters/setup-tflint@6ffdbaa3be476b3431f7275c26966ef32ff60337 # v6.3.2
+        with:
+          tflint_version: v0.64.0
+      - run: tflint --init && tflint --format compact
+
+  ansible:
+    name: Ansible (ansible-lint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - run: uvx --from ansible-lint ansible-lint infra/ansible/
+
+  kubernetes:
+    name: Manifestos (kubeconform + Kyverno)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        ambiente: [dev, prod]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Renderizar overlay com Kustomize
+        run: |
+          mkdir -p render
+          kubectl kustomize "deploy/overlays/${{ matrix.ambiente }}" > "render/${{ matrix.ambiente }}.yaml"
+      - name: Validar schemas (inclui CRDs do Argo Rollouts e Prometheus Operator)
+        run: |
+          docker run --rm -v "$PWD/render:/render:ro" ghcr.io/yannh/kubeconform:v0.8.0 \
+            -strict -summary -kubernetes-version 1.35.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            "/render/${{ matrix.ambiente }}.yaml"
+      - name: Testes unitários das políticas (casos conformes e violações)
+        run: |
+          docker run --rm -v "$PWD:/w:ro" -w /w ghcr.io/kyverno/kyverno-cli:v1.19.1 \
+            test policies/kyverno/testes
+      - name: Aplicar políticas Kyverno aos manifestos (shift-left de compliance)
+        # Mesmas políticas aplicadas pelo admission controller no cluster: o PR
+        # falha aqui, antes de o Argo CD tentar (e falhar) o deploy.
+        run: |
+          docker run --rm -v "$PWD:/w:ro" -w /w ghcr.io/kyverno/kyverno-cli:v1.19.1 \
+            apply policies/kyverno/seguranca-de-pods.yaml policies/kyverno/boas-praticas-operacionais.yaml \
+            --resource "render/${{ matrix.ambiente }}.yaml"

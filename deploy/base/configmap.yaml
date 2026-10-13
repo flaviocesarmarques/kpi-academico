@@ -1,0 +1,14 @@
+# Configuração NÃO sensível (12-Factor). Segredos ficam no Secret "kpi-secrets",
+# criptografado com SOPS em deploy/secrets/. Os overlays sobrescrevem valores.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kpi-config
+data:
+  KPI_AMBIENTE: dev
+  KPI_LOG_LEVEL: INFO
+  KPI_LIMITE_VERDE: "100"
+  KPI_LIMITE_AMARELO: "85"
+  KPI_FLAG_PAINEL_TENDENCIA: "false"
+  OTEL_SERVICE_NAME: kpi-academico
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo.observabilidade:4318

@@ -1,0 +1,91 @@
+# =============================================================================
+# Políticas como código (Kyverno ValidatingPolicy, expressões CEL) — etapa 7
+# -----------------------------------------------------------------------------
+# Aplicadas em DOIS lugares, com o mesmo arquivo:
+#   1. No PR, pelo Kyverno CLI (workflow iac.yml) → erro aparece antes do merge.
+#   2. No cluster, como admission controller → nada fora da regra entra,
+#      nem por kubectl manual.
+#
+# CEL (Common Expression Language) é a mesma linguagem das
+# ValidatingAdmissionPolicies nativas do Kubernetes: aprender aqui serve lá.
+#
+# Cobre Pods e TODOS os controladores usados no projeto (StatefulSet, Job e o
+# Rollout do Argo Rollouts), lendo o "podSpec" de cada um pela variável abaixo.
+# Escopo: somente objetos com o rótulo app.kubernetes.io/part-of=kpi-academico.
+#
+# Instalar no cluster:  kubectl apply -f policies/kyverno/ -f policies/kyverno-cluster/
+# Ver violações:        kubectl get policyreports -A
+# =============================================================================
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: seguranca-de-pods
+  annotations:
+    policies.kyverno.io/title: Segurança básica de pods
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/description: >-
+      Exige execução não-root, perfil seccomp, sem escalada de privilégio,
+      sem capabilities e com sistema de arquivos somente leitura.
+spec:
+  validationActions: [Deny] # "Audit" apenas registra; use-o para introduzir políticas sem quebrar nada
+  evaluation:
+    background:
+      enabled: true
+  autogen:
+    podControllers:
+      controllers: [] # a cobertura dos controladores é explícita em resourceRules
+  matchConstraints:
+    objectSelector:
+      matchLabels:
+        app.kubernetes.io/part-of: kpi-academico
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+      - apiGroups: [apps]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [deployments, statefulsets]
+      - apiGroups: [batch]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [jobs]
+      - apiGroups: [argoproj.io]
+        apiVersions: [v1alpha1]
+        operations: [CREATE, UPDATE]
+        resources: [rollouts]
+  variables:
+    - name: podSpec
+      expression: "object.kind == 'Pod' ? object.spec : object.spec.template.spec"
+    - name: containers
+      expression: >-
+        variables.podSpec.containers +
+        (has(variables.podSpec.initContainers) ? variables.podSpec.initContainers : [])
+  validations:
+    - message: "O pod deve rodar como não-root (securityContext.runAsNonRoot: true)."
+      expression: >-
+        has(variables.podSpec.securityContext) &&
+        has(variables.podSpec.securityContext.runAsNonRoot) &&
+        variables.podSpec.securityContext.runAsNonRoot == true
+    - message: "Defina securityContext.seccompProfile.type: RuntimeDefault no pod."
+      expression: >-
+        has(variables.podSpec.securityContext) &&
+        has(variables.podSpec.securityContext.seccompProfile) &&
+        variables.podSpec.securityContext.seccompProfile.type == 'RuntimeDefault'
+    - message: >-
+        Todo container precisa de allowPrivilegeEscalation=false,
+        readOnlyRootFilesystem=true e capabilities.drop=[ALL].
+      expression: >-
+        variables.containers.all(c, has(c.securityContext) &&
+          has(c.securityContext.allowPrivilegeEscalation) &&
+          c.securityContext.allowPrivilegeEscalation == false &&
+          has(c.securityContext.readOnlyRootFilesystem) &&
+          c.securityContext.readOnlyRootFilesystem == true &&
+          has(c.securityContext.capabilities) &&
+          has(c.securityContext.capabilities.drop) &&
+          'ALL' in c.securityContext.capabilities.drop)
+    - message: "O token da ServiceAccount não deve ser montado sem necessidade."
+      expression: >-
+        has(variables.podSpec.automountServiceAccountToken) &&
+        variables.podSpec.automountServiceAccountToken == false

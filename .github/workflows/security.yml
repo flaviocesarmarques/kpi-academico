@@ -1,0 +1,147 @@
+# =============================================================================
+# DevSecOps — segurança em camadas (etapa 3 da trilha)
+# -----------------------------------------------------------------------------
+# Roda em PRs, na main e semanalmente (novas CVEs surgem mesmo sem mudança
+# no código!). Os resultados em SARIF aparecem em: Security → Code scanning.
+#
+#   Camada                 Ferramenta            O que encontra
+#   ---------------------  --------------------  -------------------------------
+#   SAST (código)          CodeQL                injeção, XSS, path traversal...
+#   SAST (workflows)       CodeQL "actions"      injeção em workflows do GitHub
+#   Segredos (histórico)   Gitleaks              senhas/tokens em QUALQUER commit
+#   SCA (dependências)     pip-audit             CVEs em bibliotecas Python
+#   Dockerfile             Hadolint              más práticas de container
+#   IaC / Kubernetes       Checkov               configs inseguras (root, sem limits…)
+#   Sistema de arquivos    Trivy fs              CVE + segredos + misconfig
+#
+# Boas práticas: cada job tem só as permissões de que precisa; ferramentas
+# rodam por imagem/versão fixa; falhas bloqueiam o merge (status checks).
+# =============================================================================
+name: Segurança
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 6 * * 1" # segundas, 03:17 (horário de Brasília). Minuto "quebrado" evita fila.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: seg-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  codeql:
+    name: CodeQL (${{ matrix.linguagem }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write # publicar alertas em Code scanning
+    strategy:
+      fail-fast: false
+      matrix:
+        linguagem: [python, actions]
+    steps:
+      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          languages: ${{ matrix.linguagem }}
+          queries: security-extended # conjunto mais amplo que o padrão
+      - uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          category: /language:${{ matrix.linguagem }}
+
+  segredos:
+    name: Segredos no histórico (Gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # TODO o histórico: segredo removido num commit novo continua no antigo
+          persist-credentials: false
+      - name: Gitleaks (CLI oficial via container, versão fixa)
+        run: |
+          docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 \
+            git /repo --redact --verbose --exit-code 1
+
+  dependencias:
+    name: Vulnerabilidades em dependências (pip-audit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-python-uv
+      - name: Auditar dependências travadas (inclui transitivas)
+        run: |
+          uv export --locked --no-dev --no-emit-project --format requirements-txt > reports-req.txt
+          uv run pip-audit --strict --requirement reports-req.txt --disable-pip
+
+  dockerfile:
+    name: Lint do Dockerfile (Hadolint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0
+        with:
+          dockerfile: Dockerfile
+          config: .hadolint.yaml
+          format: sarif
+          output-file: hadolint.sarif
+      - uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        if: always()
+        with:
+          sarif_file: hadolint.sarif
+          category: hadolint
+
+  iac:
+    name: Segurança de IaC e Kubernetes (Checkov + Trivy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - name: Checkov (OpenTofu, Kubernetes, Dockerfile, GitHub Actions)
+        # Exceções justificadas ficam em .checkov.yaml (nunca silencie sem explicar).
+        run: |
+          uvx --from 'checkov==3.3.28' checkov --directory . --config-file .checkov.yaml \
+            --output cli --output sarif --output-file-path console,checkov.sarif
+      - name: Trivy (vulnerabilidades, segredos e misconfig no repositório)
+        if: always()
+        run: |
+          docker run --rm -v "$PWD:/src" aquasec/trivy:0.75.0 fs \
+            --scanners vuln,secret,misconfig --severity CRITICAL,HIGH \
+            --skip-dirs .venv --format sarif --output /src/trivy.sarif /src
+      - uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        if: always()
+        with:
+          sarif_file: checkov.sarif
+          category: checkov
+      - uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        if: always()
+        with:
+          sarif_file: trivy.sarif
+          category: trivy-fs

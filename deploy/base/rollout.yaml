@@ -1,0 +1,118 @@
+# =============================================================================
+# Rollout (Argo Rollouts) — substitui o Deployment com ENTREGA PROGRESSIVA
+# -----------------------------------------------------------------------------
+# Canary: a versão nova recebe uma fração do tráfego enquanto a análise
+# automática (analise-canary.yaml) consulta a taxa de erro no Prometheus.
+# Se a métrica piorar, o Rollout ABORTA e volta sozinho para a versão estável
+# (rollback automático, sem intervenção humana, em minutos).
+#
+# Acompanhar:  kubectl argo rollouts get rollout kpi-api -n kpi-dev --watch
+# Promover:    kubectl argo rollouts promote kpi-api -n kpi-prod
+# Abortar:     kubectl argo rollouts abort kpi-api -n kpi-prod
+#
+# Boas práticas de pod aplicadas abaixo (exigidas pelas políticas Kyverno e
+# pelo Pod Security "restricted"): não-root, sistema de arquivos somente
+# leitura, sem escalada de privilégio, sem capabilities, seccomp, probes,
+# requests/limits, distribuição entre nós e desligamento gracioso.
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: kpi-api
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kpi-api
+  strategy:
+    canary:
+      stableService: kpi-api
+      canaryService: kpi-api-canary
+      # Sem malha de serviço, o peso é aproximado pelo número de réplicas.
+      # Com Traefik/NGINX/Istio, configure "trafficRouting" para peso exato.
+      analysis:
+        templates:
+          - templateName: taxa-de-erro
+        startingStep: 1
+        args:
+          - name: namespace
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+      steps:
+        - setWeight: 25
+        - pause: { duration: 2m }
+        - setWeight: 50
+        - pause: { duration: 2m }
+        - setWeight: 100
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kpi-api
+        kpi.acesso-db: "true" # liberado pela NetworkPolicy do banco
+    spec:
+      automountServiceAccountToken: false # a API não fala com o Kubernetes
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: kpi-api
+      containers:
+        - name: api
+          image: kpi-academico # o Kustomize troca pelo nome/versão completos
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: kpi-config
+            - secretRef:
+                name: kpi-secrets
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              # Sem limite de CPU de propósito: evita "throttling" e latência.
+              # Limite de memória é obrigatório (protege o nó de vazamentos).
+              memory: 256Mi
+          startupProbe:
+            httpGet: { path: /health/live, port: http }
+            periodSeconds: 2
+            failureThreshold: 30
+          livenessProbe:
+            httpGet: { path: /health/live, port: http }
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: { path: /health/ready, port: http }
+            periodSeconds: 5
+          lifecycle:
+            preStop:
+              sleep:
+                seconds: 5 # tempo para sair do balanceador antes do SIGTERM
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi

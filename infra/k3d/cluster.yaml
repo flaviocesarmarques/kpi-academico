@@ -1,0 +1,29 @@
+# =============================================================================
+# Cluster Kubernetes LOCAL com k3d (k3s dentro de Docker) — etapa 6
+# -----------------------------------------------------------------------------
+# Cluster descrito como código: qualquer pessoa recria o MESMO ambiente com
+#   make cluster        (k3d cluster create --config infra/k3d/cluster.yaml)
+#   make cluster-destruir
+#
+# Requisitos sugeridos para a trilha completa (observabilidade + Argo + Kyverno):
+#   8 GB de RAM livres e 4 CPUs. Com menos, desligue componentes em
+#   infra/tofu/terraform.tfvars (ex.: habilitar_caos = false).
+#
+# Acesso (o Traefik do k3s atende na porta 8080 do seu computador):
+#   http://kpi-dev.localhost:8080   http://grafana.localhost:8080
+#   http://argocd.localhost:8080
+# =============================================================================
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+metadata:
+  name: kpi
+servers: 1
+agents: 2 # nós de trabalho: permite testar PDB, anti-afinidade e caos de nó
+image: rancher/k3s:v1.35.9-k3s1 # versão fixa = ambiente reproduzível
+ports:
+  - port: 8080:80
+    nodeFilters: [loadbalancer]
+options:
+  kubeconfig:
+    updateDefaultKubeconfig: true
+    switchCurrentContext: true # contexto "k3d-kpi"

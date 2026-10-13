@@ -1,0 +1,46 @@
+# Grafana Alloy — coletor que lê os logs (stdout) de todos os pods e envia ao Loki.
+# (Substitui o Promtail, descontinuado.) Os logs JSON da API viram campos pesquisáveis.
+alloy:
+  configMap:
+    content: |
+      discovery.kubernetes "pods" {
+        role = "pod"
+      }
+
+      discovery.relabel "pods" {
+        targets = discovery.kubernetes.pods.targets
+        rule {
+          source_labels = ["__meta_kubernetes_namespace"]
+          target_label  = "namespace"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+          target_label  = "app"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_name"]
+          target_label  = "pod"
+        }
+      }
+
+      loki.source.kubernetes "pods" {
+        targets    = discovery.relabel.pods.output
+        forward_to = [loki.process.json.receiver]
+      }
+
+      // Extrai o nível do log JSON como rótulo (baixa cardinalidade: ok).
+      loki.process "json" {
+        stage.json {
+          expressions = { nivel = "nivel" }
+        }
+        stage.labels {
+          values = { nivel = "" }
+        }
+        forward_to = [loki.write.padrao.receiver]
+      }
+
+      loki.write "padrao" {
+        endpoint {
+          url = "http://loki-gateway.observabilidade/loki/api/v1/push"
+        }
+      }

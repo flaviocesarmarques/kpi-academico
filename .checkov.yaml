@@ -1,0 +1,45 @@
+# =============================================================================
+# Checkov — configuração e EXCEÇÕES JUSTIFICADAS
+# -----------------------------------------------------------------------------
+# Regra de ouro: toda exceção tem motivo escrito e, idealmente, prazo de
+# revisão. Exceção sem justificativa vira dívida de segurança invisível.
+# Para exceções pontuais prefira o comentário no próprio recurso:
+#   # checkov:skip=CKV_K8S_XX: motivo
+# =============================================================================
+framework:
+  - dockerfile
+  - kubernetes
+  - kustomize
+  - terraform
+  - github_actions
+skip-path:
+  - .venv
+  - tests
+  - policies/kyverno/testes # exemplos INTENCIONALMENTE inseguros (teste das políticas)
+soft-fail: false
+skip-check:
+  # CKV_K8S_21 (namespace default) e CKV_K8S_14 (imagem sem tag): os arquivos
+  # de deploy/base são moldes; namespace e versão da imagem são definidos pelos
+  # overlays do Kustomize, que o Checkov também analisa renderizados.
+  - CKV_K8S_21
+  - CKV_K8S_14
+  # CKV_K8S_11 (limite de CPU): omitido DE PROPÓSITO para evitar throttling
+  # (latência). Há requests de CPU e limite de memória (exigidos pelo Kyverno).
+  - CKV_K8S_11
+  # CKV_K8S_15 (imagePullPolicy Always): usamos tags imutáveis por versão e
+  # verificação de assinatura com troca para digest; IfNotPresent é seguro.
+  - CKV_K8S_15
+  # CKV_K8S_40 (UID alto): o PostgreSQL oficial (alpine) roda com UID 70.
+  # A API usa UID 10001. Revisar se o banco migrar para um operador.
+  - CKV_K8S_40
+  # CKV_K8S_43 (imagem por digest): tag imutável + assinatura Cosign verificada
+  # pelo Kyverno, que também converte a tag em digest no admission.
+  - CKV_K8S_43
+  # CKV_K8S_35 (Secret como arquivo): aceitável neste projeto didático
+  # (variáveis de ambiente); avalie montar como arquivo em produção.
+  - CKV_K8S_35
+  # CKV_GHA_7 (inputs em workflow_dispatch): o único input é a versão a
+  # PROMOVER (não altera build), validada por expressão regular no workflow.
+  - CKV_GHA_7
+  # CKV_TF_1: exige módulos remotos por hash de commit; não usamos módulos remotos.
+  - CKV_TF_1

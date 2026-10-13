@@ -1,0 +1,44 @@
+# =============================================================================
+# AppProject do Argo CD — limites de segurança do GitOps
+# -----------------------------------------------------------------------------
+# Restringe DE ONDE (este repositório) e PARA ONDE (só kpi-dev e kpi-prod) o
+# Argo CD pode implantar, e quais tipos de recurso. Mesmo que alguém altere um
+# manifesto para criar um ClusterRole, o Argo CD recusa.
+# Aplicar (uma vez, após `make plataforma`):  kubectl apply -f deploy/argocd/
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: kpi-academico
+  namespace: argocd
+spec:
+  description: API de indicadores acadêmicos
+  sourceRepos:
+    - https://github.com/flaviocesarmarques/kpi-academico.git
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: kpi-dev
+    - server: https://kubernetes.default.svc
+      namespace: kpi-prod
+  clusterResourceWhitelist: [] # nenhum recurso de escopo de cluster
+  namespaceResourceWhitelist:
+    - { group: "", kind: ConfigMap }
+    - { group: "", kind: Service }
+    - { group: "", kind: PersistentVolumeClaim }
+    - { group: apps, kind: StatefulSet }
+    - { group: batch, kind: Job }
+    - { group: networking.k8s.io, kind: Ingress }
+    - { group: networking.k8s.io, kind: NetworkPolicy }
+    - { group: policy, kind: PodDisruptionBudget }
+    - { group: autoscaling, kind: HorizontalPodAutoscaler }
+    - { group: argoproj.io, kind: Rollout }
+    - { group: argoproj.io, kind: AnalysisTemplate }
+    - { group: monitoring.coreos.com, kind: PodMonitor }
+    - { group: monitoring.coreos.com, kind: PrometheusRule }
+  # Janela de mudança: nada de deploy automático em produção no fim de semana.
+  syncWindows:
+    - kind: deny
+      schedule: "0 0 * * 6" # sábado 00:00 (UTC) por 48h
+      duration: 48h
+      applications: [kpi-prod]
+      manualSync: true # emergências ainda podem ser sincronizadas manualmente

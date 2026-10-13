@@ -1,0 +1,44 @@
+# =============================================================================
+# Overlay PROD — atualizado pelo workflow promover-producao.yml, que exige
+# aprovação no GitHub Environment "producao" e verifica a assinatura da imagem.
+# =============================================================================
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: kpi-prod
+
+resources:
+  - ../../base
+  - hpa.yaml
+
+images:
+  - name: kpi-academico
+    newName: ghcr.io/flaviocesarmarques/kpi-academico
+    newTag: 0.1.0 # ← alterado pelo pipeline de promoção; não edite à mão
+
+patches:
+  - target: { kind: Rollout, name: kpi-api }
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 3
+      # Canary de produção com PORTÃO MANUAL depois do primeiro passo:
+      # "pause: {}" espera alguém rodar `kubectl argo rollouts promote`.
+      - op: replace
+        path: /spec/strategy/canary/steps
+        value:
+          - setWeight: 33
+          - pause: { duration: 5m }
+          - pause: {}
+          - setWeight: 66
+          - pause: { duration: 5m }
+          - setWeight: 100
+  - target: { kind: Ingress, name: kpi-api }
+    patch: |
+      - op: replace
+        path: /spec/rules/0/host
+        value: kpi.localhost
+  - target: { kind: ConfigMap, name: kpi-config }
+    patch: |
+      - op: replace
+        path: /data/KPI_AMBIENTE
+        value: prod

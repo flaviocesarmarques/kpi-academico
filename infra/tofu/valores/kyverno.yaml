@@ -1,0 +1,11 @@
+# Kyverno — 1 réplica por controlador basta em laboratório.
+# Em produção use 3 réplicas no admissionController (alta disponibilidade):
+# se o Kyverno cair, as políticas param de ser verificadas (ou o cluster trava, se failurePolicy=Fail).
+admissionController:
+  replicas: 1
+backgroundController:
+  replicas: 1
+cleanupController:
+  replicas: 1
+reportsController:
+  replicas: 1

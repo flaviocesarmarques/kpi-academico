@@ -1,0 +1,7 @@
+# Normaliza quebras de linha (LF) no repositório, mesmo para quem usa Windows.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+# Arquivos gerados: não poluem a revisão de PR nem as estatísticas de linguagem.
+uv.lock linguist-generated=true -diff
+CHANGELOG.md linguist-generated=true

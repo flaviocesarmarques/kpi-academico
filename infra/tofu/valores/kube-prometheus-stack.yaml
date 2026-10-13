@@ -1,0 +1,53 @@
+# kube-prometheus-stack: Prometheus + Alertmanager + Grafana + exporters.
+fullnameOverride: kps # serviço do Prometheus: kps-prometheus.observabilidade:9090
+
+prometheus:
+  prometheusSpec:
+    # Descobre ServiceMonitors/PrometheusRules de QUALQUER namespace,
+    # sem exigir o rótulo "release". A aplicação traz os seus em deploy/base.
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    retention: 7d
+    resources:
+      requests: { cpu: 200m, memory: 512Mi }
+
+alertmanager:
+  # Configure receptores reais (e-mail, Teams, Slack, Telegram) em
+  # alertmanager.config. Alertas sem destinatário não protegem ninguém.
+  alertmanagerSpec:
+    resources:
+      requests: { cpu: 50m, memory: 64Mi }
+
+grafana:
+  fullnameOverride: grafana
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    hosts:
+      - "grafana.${dominio}"
+  sidecar:
+    dashboards:
+      enabled: true
+      searchNamespace: ALL # carrega dashboards de ConfigMaps com rótulo grafana_dashboard=1
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      uid: loki
+      url: http://loki-gateway.observabilidade
+      jsonData:
+        # Do log para o trace: clique no trace_id do log e abra no Tempo.
+        derivedFields:
+          - name: trace_id
+            matcherRegex: '"trace_id":"(\w+)"'
+            datasourceUid: tempo
+            url: "$${__value.raw}"
+    - name: Tempo
+      type: tempo
+      uid: tempo
+      url: http://tempo.observabilidade:3200
+      jsonData:
+        tracesToLogsV2:
+          datasourceUid: loki
+        serviceMap:
+          datasourceUid: prometheus

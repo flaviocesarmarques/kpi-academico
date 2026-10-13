@@ -1,0 +1,67 @@
+# =============================================================================
+# Applications do Argo CD — o Git é a ÚNICA fonte da verdade
+# -----------------------------------------------------------------------------
+# automated.selfHeal: se alguém alterar o cluster "na mão" (kubectl edit), o
+#   Argo CD desfaz e volta ao que está no Git → sem configuração divergente.
+# automated.prune: recurso removido do Git é removido do cluster.
+# O portão de produção não está aqui, e sim antes: PR + aprovação no GitHub
+# Environment + assinatura verificada + pausa manual do canary.
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kpi-dev
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: kpi-academico
+  source:
+    repoURL: https://github.com/flaviocesarmarques/kpi-academico.git
+    targetRevision: main
+    path: deploy/overlays/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kpi-dev
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - PruneLast=true
+    retry:
+      limit: 5
+      backoff: { duration: 10s, factor: 2, maxDuration: 3m }
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kpi-prod
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: kpi-academico
+  source:
+    repoURL: https://github.com/flaviocesarmarques/kpi-academico.git
+    targetRevision: main
+    path: deploy/overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kpi-prod
+  # O HPA altera o número de réplicas em tempo real; sem isto, o selfHeal
+  # "brigaria" com o HPA, voltando sempre ao valor do Git.
+  ignoreDifferences:
+    - group: argoproj.io
+      kind: Rollout
+      jsonPointers: [/spec/replicas]
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - PruneLast=true
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 5
+      backoff: { duration: 10s, factor: 2, maxDuration: 3m }

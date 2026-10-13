@@ -1,0 +1,22 @@
+# =============================================================================
+# SOPS — segredos CRIPTOGRAFADOS dentro do Git (etapa 7)
+# -----------------------------------------------------------------------------
+# Só os VALORES são criptografados (as chaves do YAML ficam legíveis), então
+# o diff do PR mostra QUAL segredo mudou sem revelar o conteúdo.
+#
+# 1. Gere a chave:              make segredos-chave   (cria age.key — NÃO versionar!)
+# 2. Cole a chave PÚBLICA (age1...) abaixo, no lugar de AGE-PUBLIC-KEY-AQUI.
+# 3. Crie o segredo:            scripts/criar-segredos.sh dev
+# 4. Aplique no cluster:        make segredos-aplicar
+#
+# Guarde age.key num cofre (ex.: gerenciador de senhas da instituição).
+# Perdeu a chave = perdeu os segredos. Para equipes, liste várias chaves
+# públicas separadas por vírgula (uma por pessoa/máquina autorizada).
+#
+# Evolução 100% GitOps: o plugin KSOPS faz o próprio Argo CD descriptografar;
+# ou use External Secrets Operator com OpenBao (fork livre do Vault).
+# =============================================================================
+creation_rules:
+  - path_regex: deploy/secrets/.*\.enc\.yaml$
+    encrypted_regex: ^(data|stringData)$
+    age: AGE-PUBLIC-KEY-AQUI

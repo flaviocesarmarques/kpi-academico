@@ -1,0 +1,14 @@
+# Coleta de métricas pelo Prometheus. PodMonitor (em vez de ServiceMonitor)
+# coleta TODOS os pods — estáveis e canary — o que a análise do canary precisa.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: kpi-api
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kpi-api
+  podMetricsEndpoints:
+    - port: http
+      path: /metrics
+      interval: 15s

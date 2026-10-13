@@ -1,0 +1,128 @@
+# =============================================================================
+# Ansible — prepara a ESTAÇÃO DevOps (etapa 6: gerência de configuração)
+# -----------------------------------------------------------------------------
+# Instala, com versões FIXAS, todas as ferramentas da trilha numa máquina
+# Ubuntu/Debian (notebook, VM de laboratório ou WSL2).
+#
+# Por que Ansible e não um script .sh?
+#   • IDEMPOTENTE: rodar 10 vezes dá o mesmo resultado que rodar 1 vez.
+#   • DECLARATIVO: descreve o estado desejado, não os passos.
+#   • Modo simulação:  ansible-playbook ... --check --diff
+#   • Escala: o mesmo playbook prepara 40 máquinas de um laboratório,
+#     trocando só o inventário (inventario.ini).
+#
+# Uso:
+#   uvx --from ansible-core ansible-playbook -i infra/ansible/inventario.ini \
+#       infra/ansible/estacao-devops.yml --ask-become-pass
+#
+# Customização: altere as versões em `vars` (o Dependabot não as acompanha;
+# revise-as a cada semestre).
+# =============================================================================
+- name: Preparar estação DevOps
+  hosts: estacoes
+  become: true
+  vars:
+    arquitetura: "{{ 'arm64' if ansible_facts['architecture'] == 'aarch64' else 'amd64' }}"
+    usuario_dev: "{{ ansible_env.SUDO_USER | default(ansible_user_id) }}"
+    versoes:
+      kubectl: v1.35.9 # mesma minor do k3s em infra/k3d/cluster.yaml
+      k3d: v5.9.0
+      helm: v3.22.0
+      opentofu: 1.13.1
+      sops: v3.13.3
+      age: v1.3.2
+      k6: v2.3.0
+      argocd: v3.5.5
+      cosign: v3.1.3
+    destino_binarios: /usr/local/bin
+
+  tasks:
+    - name: Pacotes base
+      ansible.builtin.apt:
+        name: [ca-certificates, curl, git, jq, make, unzip, gnupg]
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Docker Engine (pacote da distribuição)
+      ansible.builtin.apt:
+        name: [docker.io, docker-compose-v2]
+        state: present
+
+    - name: Usuário no grupo docker (requer novo login para valer)
+      ansible.builtin.user:
+        name: "{{ usuario_dev }}"
+        groups: docker
+        append: true
+
+    - name: Binários únicos (download com versão fixa)
+      ansible.builtin.get_url:
+        url: "{{ item.url }}"
+        dest: "{{ destino_binarios }}/{{ item.nome }}"
+        mode: "0755"
+      loop:
+        - nome: kubectl
+          url: "https://dl.k8s.io/release/{{ versoes.kubectl }}/bin/linux/{{ arquitetura }}/kubectl"
+        - nome: k3d
+          url: "https://github.com/k3d-io/k3d/releases/download/{{ versoes.k3d }}/k3d-linux-{{ arquitetura }}"
+        - nome: sops
+          url: "https://github.com/getsops/sops/releases/download/{{ versoes.sops }}/sops-{{ versoes.sops }}.linux.{{ arquitetura }}"
+        - nome: argocd
+          url: "https://github.com/argoproj/argo-cd/releases/download/{{ versoes.argocd }}/argocd-linux-{{ arquitetura }}"
+        - nome: cosign
+          url: "https://github.com/sigstore/cosign/releases/download/{{ versoes.cosign }}/cosign-linux-{{ arquitetura }}"
+      loop_control:
+        label: "{{ item.nome }}"
+
+    - name: Diretório temporário para pacotes compactados
+      ansible.builtin.file:
+        path: /tmp/estacao-devops
+        state: directory
+        mode: "0755"
+
+    - name: Ferramentas distribuídas em .tar.gz
+      ansible.builtin.unarchive:
+        src: "{{ item.url }}"
+        dest: /tmp/estacao-devops
+        remote_src: true
+        creates: "/tmp/estacao-devops/{{ item.marcador }}"
+      loop:
+        - url: "https://get.helm.sh/helm-{{ versoes.helm }}-linux-{{ arquitetura }}.tar.gz"
+          marcador: "linux-{{ arquitetura }}/helm"
+        - url: "https://github.com/opentofu/opentofu/releases/download/v{{ versoes.opentofu }}/tofu_{{ versoes.opentofu }}_linux_{{ arquitetura }}.tar.gz"
+          marcador: tofu
+        - url: "https://github.com/FiloSottile/age/releases/download/{{ versoes.age }}/age-{{ versoes.age }}-linux-{{ arquitetura }}.tar.gz"
+          marcador: age/age
+        - url: "https://github.com/grafana/k6/releases/download/{{ versoes.k6 }}/k6-{{ versoes.k6 }}-linux-{{ arquitetura }}.tar.gz"
+          marcador: "k6-{{ versoes.k6 }}-linux-{{ arquitetura }}/k6"
+      loop_control:
+        label: "{{ item.marcador }}"
+
+    - name: Instalar binários extraídos
+      ansible.builtin.copy:
+        src: "/tmp/estacao-devops/{{ item }}"
+        dest: "{{ destino_binarios }}/"
+        remote_src: true
+        mode: "0755"
+      loop:
+        - "linux-{{ arquitetura }}/helm"
+        - tofu
+        - age/age
+        - age/age-keygen
+        - "k6-{{ versoes.k6 }}-linux-{{ arquitetura }}/k6"
+
+    - name: Instalar uv (gerenciador de projetos Python)
+      ansible.builtin.shell:
+        cmd: set -o pipefail && curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR={{ destino_binarios }} sh
+        executable: /bin/bash
+        creates: "{{ destino_binarios }}/uv"
+
+    - name: Conferir versões instaladas
+      ansible.builtin.command: "{{ item }}"
+      loop:
+        - kubectl version --client
+        - k3d version
+        - helm version --short
+        - tofu version
+        - sops --version
+      changed_when: false

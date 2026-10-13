@@ -1,0 +1,124 @@
+# =============================================================================
+# pyproject.toml — fonte ÚNICA de configuração do projeto Python
+# -----------------------------------------------------------------------------
+# Boas práticas DevOps aplicadas aqui:
+#   • Um só arquivo para dependências, build, lint, testes e cobertura
+#     (evita configurações espalhadas e divergentes).
+#   • Dependências com faixa de versão (>= mínima, < próxima major) e
+#     travadas de fato no uv.lock → builds reproduzíveis (etapa 3).
+#   • Ferramentas de qualidade configuradas aqui são as MESMAS usadas
+#     no pre-commit (máquina do dev) e no CI → "shift-left": o erro aparece
+#     antes, e o pipeline não tem regra que o desenvolvedor desconhece.
+#
+# Customização:
+#   • Para adicionar uma dependência: `uv add <pacote>` (atualiza este arquivo
+#     e o uv.lock juntos). Nunca edite o uv.lock à mão.
+#   • A versão abaixo é gerenciada pelo release-please (etapa 5): não altere
+#     manualmente; use Conventional Commits (feat:, fix:) e ela sobe sozinha.
+# =============================================================================
+
+[project]
+name = "kpi-academico"
+version = "0.1.0" # x-release-please-version
+description = "API de indicadores (KPIs) acadêmicos para cursos de graduação de uma IES privada."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12"
+authors = [{ name = "Coordenação dos Cursos de TI" }]
+dependencies = [
+  "fastapi>=0.143,<1.0",                      # framework web assíncrono com OpenAPI automático
+  "uvicorn[standard]>=0.30,<1.0",              # servidor ASGI de produção
+  "sqlalchemy>=2.1,<3",                       # ORM (estilo tipado 2.x)
+  "alembic>=1.20,<2",                         # migrações de banco versionadas (schema como código)
+  "psycopg[binary]>=3.2,<4",                  # driver PostgreSQL
+  "pydantic-settings>=2.15,<3",               # configuração via variáveis de ambiente (12-factor app)
+  "prometheus-client>=0.21,<1",               # métricas Prometheus (/metrics): HTTP e de negócio
+  "opentelemetry-api>=1.30,<2",               # rastreamento distribuído (traces)
+  "opentelemetry-sdk>=1.30,<2",
+  "opentelemetry-exporter-otlp-proto-http>=1.30,<2",
+  "opentelemetry-instrumentation-fastapi>=0.51b0",
+  "UnleashClient>=6,<7",                      # feature flags (etapa 8)
+]
+
+[project.optional-dependencies]
+# Dependências SOMENTE de desenvolvimento/CI — nunca entram na imagem de produção.
+dev = [
+  "pytest>=8,<10",
+  "pytest-cov>=6,<8",
+  "httpx>=0.28,<1",                     # cliente usado pelo TestClient do FastAPI
+  "ruff>=0.9,<1",                       # linter + formatador (substitui flake8, isort, black, bandit-lite)
+  "mypy>=1.14,<2",                      # checagem estática de tipos
+  "testcontainers[postgres]>=4.9,<5",   # testes de integração com PostgreSQL real em container
+  "pre-commit>=4,<5",
+  "pip-audit>=2.7,<3",                  # SCA: procura CVEs nas dependências Python
+]
+
+[project.scripts]
+kpi-seed = "kpi_academico.seed:main"   # popula o banco com dados de exemplo
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+# Layout "src/": impede que os testes importem o código "por acidente" do
+# diretório corrente, garantindo que testamos o pacote como será instalado.
+packages = ["src/kpi_academico"]
+
+# -----------------------------------------------------------------------------
+# Ruff — lint e formatação
+# -----------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+# E/W=pycodestyle, F=pyflakes, I=isort, B=bugbear, UP=pyupgrade,
+# S=regras de segurança (bandit), SIM=simplificações, N=nomes, C4=comprehensions,
+# PT=boas práticas de pytest, RUF=regras do próprio ruff.
+select = ["E", "W", "F", "I", "B", "UP", "S", "SIM", "N", "C4", "PT", "RUF"]
+ignore = ["RUF001", "RUF002", "RUF003"] # permitem acentos do português em textos e comentários
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106"] # assert e "senhas" fictícias são normais em testes
+"migrations/**" = ["N999"]
+
+[tool.ruff.lint.flake8-bugbear]
+# Depends()/Query() do FastAPI como valor padrão é o padrão do framework.
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Security"]
+
+# -----------------------------------------------------------------------------
+# mypy — tipos
+# -----------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["kpi_academico"]
+mypy_path = "src"
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["UnleashClient.*", "testcontainers.*", "docker.*"]
+ignore_missing_imports = true
+
+# -----------------------------------------------------------------------------
+# pytest + cobertura
+# -----------------------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers --cov=kpi_academico --cov-report=term-missing --cov-report=xml"
+markers = [
+  "integration: testes que precisam de Docker (PostgreSQL real via Testcontainers)",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["kpi_academico"]
+
+[tool.coverage.report]
+# Quality gate de cobertura: o CI falha abaixo deste valor.
+# Ajuste gradualmente para cima (nunca para baixo) conforme o projeto amadurece.
+fail_under = 85
+show_missing = true
+exclude_also = ["if TYPE_CHECKING:", "raise NotImplementedError"]

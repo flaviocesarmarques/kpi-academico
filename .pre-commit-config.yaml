@@ -1,0 +1,81 @@
+# =============================================================================
+# pre-commit — verificações automáticas ANTES de cada commit (etapa 1)
+# -----------------------------------------------------------------------------
+# "Shift-left": o problema é pego na máquina do desenvolvedor, em segundos,
+# em vez de no CI (minutos) ou em produção (horas/dias).
+#
+# Instalação (uma vez por clone):
+#   uv run pre-commit install --install-hooks
+#   uv run pre-commit install --hook-type commit-msg   # valida mensagem do commit
+# Rodar em todos os arquivos:   uv run pre-commit run --all-files
+# Atualizar versões dos hooks:  uv run pre-commit autoupdate
+#
+# IMPORTANTE: o CI roda estes MESMOS hooks (job "pre-commit" em ci.yml), então
+# "pular" localmente com --no-verify não burla a regra — apenas atrasa o erro.
+# =============================================================================
+default_install_hook_types: [pre-commit, commit-msg]
+default_stages: [pre-commit]
+
+repos:
+  # Higiene básica de arquivos
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+        exclude: ^deploy/.*\.enc\.yaml$
+      - id: check-json
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files   # binários grandes não pertencem ao Git
+        args: [--maxkb=500]
+        exclude: ^uv\.lock$             # lockfile é texto gerado; cresce com as dependências
+      - id: detect-private-key        # bloqueia chaves privadas commitadas
+      - id: no-commit-to-branch       # força o fluxo por Pull Request
+        args: [--branch, main]
+
+  # Python: lint + formatação (mesma config do pyproject.toml)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.0
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
+  # Segredos vazados (senhas, tokens, chaves) — antes que entrem no histórico!
+  # Segredo commitado deve ser considerado COMPROMETIDO: revogue e gere outro.
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+
+  # Conventional Commits: feat:, fix:, docs:, chore:, refactor:, test:, ci:, perf:
+  # É isso que permite ao release-please calcular a versão e o CHANGELOG.
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v4.4.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+
+  # Workflows do GitHub Actions: sintaxe, expressões e scripts (via shellcheck).
+  # Versão empacotada para pip: não exige Go instalado na máquina.
+  - repo: https://github.com/Mateusz-Grzelinski/actionlint-py
+    rev: v1.7.12.25
+    hooks:
+      - id: actionlint
+        additional_dependencies: [shellcheck-py==0.11.0.1]
+
+  # Dockerfile: boas práticas (versões fixas, usuário não-root etc.)
+  - repo: https://github.com/AleksaC/hadolint-py
+    rev: v2.15.1
+    hooks:
+      - id: hadolint
+        args: [--config, .hadolint.yaml]
+
+  # OpenTofu: formatação (requer o binário "tofu" instalado; veja infra/ansible)
+  - repo: https://github.com/tofuutils/pre-commit-opentofu
+    rev: v2.4.2
+    hooks:
+      - id: tofu_fmt

@@ -1,0 +1,32 @@
+# Testes unitários das políticas:  kyverno test policies/kyverno/testes
+# Rodam no CI (iac.yml). Se alguém "afrouxar" uma política sem querer, falha aqui.
+apiVersion: cli.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: testes-das-politicas
+policies:
+  - ../seguranca-de-pods.yaml
+  - ../boas-praticas-operacionais.yaml
+resources:
+  - recursos.yaml
+results:
+  - isValidatingPolicy: true
+    policy: seguranca-de-pods
+    kind: Deployment
+    resources: [conforme]
+    result: pass
+  - isValidatingPolicy: true
+    policy: seguranca-de-pods
+    kind: Deployment
+    resources: [inseguro]
+    result: fail
+  - isValidatingPolicy: true
+    policy: boas-praticas-operacionais
+    kind: Deployment
+    resources: [conforme]
+    result: pass
+  - isValidatingPolicy: true
+    policy: boas-praticas-operacionais
+    kind: Deployment
+    resources: [inseguro]
+    result: fail

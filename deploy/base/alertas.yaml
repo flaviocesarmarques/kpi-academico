@@ -1,0 +1,56 @@
+# =============================================================================
+# Alertas como código (PrometheusRule) — baseados em SLOs
+# -----------------------------------------------------------------------------
+# SLOs deste serviço (os mesmos do teste de carga k6 e da análise do canary):
+#   • Disponibilidade: 99,5% das requisições sem erro 5xx (janela de 30 dias)
+#   • Latência: p95 < 500 ms
+# Boas práticas de alerta:
+#   • Alerte sobre SINTOMAS que o usuário sente (erro, lentidão), não causas.
+#   • "for:" evita alarmes por picos de segundos (fadiga de alerta).
+#   • Todo alerta tem severidade e RUNBOOK (o que fazer às 3h da manhã).
+# =============================================================================
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kpi-api-slos
+spec:
+  groups:
+    - name: kpi-api.regras-de-gravacao
+      rules:
+        # Regras de gravação: pré-calculam séries usadas por dashboards e alertas.
+        - record: kpi:taxa_erro:5m
+          expr: |
+            sum by (namespace) (rate(http_requests_total{status=~"5.."}[5m]))
+            /
+            sum by (namespace) (rate(http_requests_total[5m]))
+        - record: kpi:latencia_p95:5m
+          expr: |
+            histogram_quantile(0.95,
+              sum by (namespace, le) (rate(http_request_duration_seconds_bucket[5m])))
+    - name: kpi-api.alertas
+      rules:
+        - alert: KpiTaxaErroAlta
+          expr: kpi:taxa_erro:5m > 0.005
+          for: 5m
+          labels:
+            severity: critica
+          annotations:
+            summary: "Taxa de erro 5xx acima do SLO em {{ $labels.namespace }}"
+            description: "{{ $value | humanizePercentage }} das requisições com erro (SLO: 0,5%)."
+            runbook_url: https://github.com/flaviocesarmarques/kpi-academico/blob/main/docs/runbooks/taxa-de-erro-alta.md
+        - alert: KpiLatenciaAlta
+          expr: kpi:latencia_p95:5m > 0.5
+          for: 10m
+          labels:
+            severity: aviso
+          annotations:
+            summary: "Latência p95 acima de 500 ms em {{ $labels.namespace }}"
+            runbook_url: https://github.com/flaviocesarmarques/kpi-academico/blob/main/docs/runbooks/latencia-alta.md
+        - alert: KpiApiIndisponivel
+          expr: sum by (namespace) (up{pod=~"kpi-api.*"}) == 0
+          for: 2m
+          labels:
+            severity: critica
+          annotations:
+            summary: "Nenhum pod da API respondendo em {{ $labels.namespace }}"
+            runbook_url: https://github.com/flaviocesarmarques/kpi-academico/blob/main/docs/runbooks/api-indisponivel.md

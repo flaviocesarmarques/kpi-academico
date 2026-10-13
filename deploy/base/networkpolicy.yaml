@@ -1,0 +1,93 @@
+# =============================================================================
+# NetworkPolicies — ZERO TRUST dentro do cluster
+# -----------------------------------------------------------------------------
+# 1. Bloqueia TODO tráfego de entrada e saída no namespace (deny-all).
+# 2. Libera explicitamente apenas os fluxos necessários:
+#      Traefik (kube-system) → API          Prometheus → API (/metrics)
+#      API e Job de migração → PostgreSQL   API → Tempo (traces)
+#      Todos → DNS do cluster
+# Um pod comprometido não consegue "passear" pela rede da instituição.
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: negar-tudo
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: permitir-dns
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: api-entrada
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: kpi-api
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system # Traefik
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observabilidade # Prometheus
+      ports:
+        - { protocol: TCP, port: 8000 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: api-saida
+spec:
+  podSelector:
+    matchLabels:
+      kpi.acesso-db: "true"
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kpi-db
+      ports:
+        - { protocol: TCP, port: 5432 }
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observabilidade
+      ports:
+        - { protocol: TCP, port: 4318 } # OTLP → Tempo
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: banco-entrada
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: kpi-db
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              kpi.acesso-db: "true"
+      ports:
+        - { protocol: TCP, port: 5432 }

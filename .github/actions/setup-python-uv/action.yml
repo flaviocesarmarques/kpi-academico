@@ -1,0 +1,34 @@
+# =============================================================================
+# Ação COMPOSTA reutilizável: prepara Python + uv + dependências com cache.
+# -----------------------------------------------------------------------------
+# DRY em pipelines: vários jobs precisam do mesmo preparo; centralizar aqui
+# evita copiar/colar passos e garante versões iguais em todo o CI.
+# Uso:   - uses: ./.github/actions/setup-python-uv
+# =============================================================================
+name: Preparar Python e uv
+description: Instala Python, uv e as dependências travadas no uv.lock (com cache).
+inputs:
+  python-version:
+    description: Versão do Python
+    default: "3.13"
+  extras:
+    description: 'Extras do pyproject a instalar (ex.: "--extra dev"); vazio = só produção'
+    default: "--extra dev"
+runs:
+  using: composite
+  steps:
+    - name: Instalar uv (com cache baseado no uv.lock)
+      uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      with:
+        python-version: ${{ inputs.python-version }}
+        enable-cache: true
+        cache-dependency-glob: uv.lock
+
+    - name: Instalar dependências exatamente como no lockfile
+      shell: bash
+      env:
+        EXTRAS: ${{ inputs.extras }}
+      # --locked: FALHA se pyproject.toml e uv.lock divergirem (lock desatualizado).
+      run: |
+        # shellcheck disable=SC2086 # separação de palavras intencional em $EXTRAS
+        uv sync --locked $EXTRAS

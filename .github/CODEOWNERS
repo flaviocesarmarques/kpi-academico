@@ -1,0 +1,18 @@
+# =============================================================================
+# CODEOWNERS — quem precisa aprovar mudanças em cada parte do repositório.
+# Com "Require review from Code Owners" ligado no ruleset, o PR só é
+# aceito com aprovação do dono da área. Use times (@org/time) em organizações.
+# Personalizado para flaviocesarmarques por scripts/configurar-repo.sh.
+# A regra MAIS ABAIXO que casar com o arquivo é a que vale.
+# =============================================================================
+*                       @flaviocesarmarques
+
+# Regras de negócio dos indicadores: revisão da coordenação/NDE
+/src/kpi_academico/kpis.py    @flaviocesarmarques
+/src/kpi_academico/seed.py    @flaviocesarmarques
+
+# Pipelines, infraestrutura e políticas: revisão do time de plataforma
+/.github/               @flaviocesarmarques
+/infra/                 @flaviocesarmarques
+/deploy/                @flaviocesarmarques
+/policies/              @flaviocesarmarques

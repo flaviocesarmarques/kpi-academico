@@ -1,0 +1,46 @@
+# =============================================================================
+# Engenharia do caos (Chaos Mesh) — etapa 10
+# -----------------------------------------------------------------------------
+# Método: 1) defina o estado estável (SLO), 2) formule a HIPÓTESE,
+# 3) injete a falha com raio de impacto controlado, 4) observe, 5) aprenda.
+#
+# HIPÓTESE: "Se um pod da API morrer em kpi-dev, a taxa de erro continua
+# abaixo de 0,5% e o pod é recriado em < 30 s, graças a: 2+ réplicas,
+# readinessProbe, preStop e PodDisruptionBudget."
+#
+# Executar:  make caos   (enquanto roda `make carga` em outro terminal)
+# Observar:  Grafana → dashboard "KPI Acadêmico — API"
+# Resultado: registre no template de postmortem, mesmo que tudo dê certo.
+# Comece SEMPRE em dev. Caos em produção só com maturidade e horário combinado.
+# =============================================================================
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: matar-pod-da-api
+  namespace: kpi-dev
+spec:
+  action: pod-kill
+  mode: one # raio de impacto: um pod por vez
+  selector:
+    namespaces: [kpi-dev]
+    labelSelectors:
+      app.kubernetes.io/name: kpi-api
+---
+# HIPÓTESE 2: "Com 300 ms extras de latência no banco, o p95 da API fica
+# abaixo de 1 s e não há erros." Revela timeouts mal configurados.
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: banco-lento
+  namespace: kpi-dev
+spec:
+  action: delay
+  mode: all
+  selector:
+    namespaces: [kpi-dev]
+    labelSelectors:
+      app.kubernetes.io/name: kpi-db
+  delay:
+    latency: 300ms
+    jitter: 50ms
+  duration: 2m # o experimento se desfaz sozinho

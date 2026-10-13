@@ -1,0 +1,27 @@
+# =============================================================================
+# Análise automática do canary (Argo Rollouts + Prometheus)
+# -----------------------------------------------------------------------------
+# A cada 30 s consulta a taxa de erro. Duas medições ruins → o Rollout é
+# ABORTADO e a versão estável volta a receber 100% do tráfego.
+# É a mesma régua do SLO (alertas.yaml): uma só definição de "saudável".
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: taxa-de-erro
+spec:
+  args:
+    - name: namespace
+  metrics:
+    - name: taxa-de-erro-5xx
+      interval: 30s
+      failureLimit: 2
+      # Sem tráfego, a consulta retorna 0 (não reprova o canary por falta de dado).
+      successCondition: len(result) == 0 || result[0] <= 0.01
+      provider:
+        prometheus:
+          address: http://kps-prometheus.observabilidade:9090
+          query: |
+            (sum(rate(http_requests_total{namespace="{{args.namespace}}",status=~"5.."}[1m])) or vector(0))
+            /
+            (sum(rate(http_requests_total{namespace="{{args.namespace}}"}[1m])) > 0 or vector(1))

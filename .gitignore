@@ -1,0 +1,42 @@
+# Ambientes e caches Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# Bancos locais de desenvolvimento
+*.db
+
+# Segredos: NUNCA versionar. Versione apenas os .example e os *.enc.yaml (SOPS).
+.env
+*.agekey
+age.key
+kubeconfig*
+
+# OpenTofu: estado contém segredos e IDs reais — use backend remoto em equipe.
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+
+# Resultados de testes de carga/DAST
+reports/
+*.sarif
+
+# Editores/SO
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+
+# Cache local do ansible-lint
+.ansible/

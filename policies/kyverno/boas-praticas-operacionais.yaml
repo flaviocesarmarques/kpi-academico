@@ -1,0 +1,71 @@
+# =============================================================================
+# Boas práticas OPERACIONAIS: recursos, versão de imagem, origem confiável e probes.
+# Mesmo escopo e mesma técnica (variável podSpec) de seguranca-de-pods.yaml.
+# =============================================================================
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: boas-praticas-operacionais
+  annotations:
+    policies.kyverno.io/title: Boas práticas operacionais
+    policies.kyverno.io/severity: medium
+spec:
+  validationActions: [Deny]
+  evaluation:
+    background:
+      enabled: true
+  autogen:
+    podControllers:
+      controllers: []
+  matchConstraints:
+    objectSelector:
+      matchLabels:
+        app.kubernetes.io/part-of: kpi-academico
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+      - apiGroups: [apps]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [deployments, statefulsets]
+      - apiGroups: [batch]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [jobs]
+      - apiGroups: [argoproj.io]
+        apiVersions: [v1alpha1]
+        operations: [CREATE, UPDATE]
+        resources: [rollouts]
+  variables:
+    - name: podSpec
+      expression: "object.kind == 'Pod' ? object.spec : object.spec.template.spec"
+    - name: containers
+      expression: >-
+        variables.podSpec.containers +
+        (has(variables.podSpec.initContainers) ? variables.podSpec.initContainers : [])
+    # Registros confiáveis. Personalize: ex. o registro interno da instituição.
+    - name: registrosConfiaveis
+      expression: "['ghcr.io/', 'postgres:']"
+  validations:
+    - message: "Defina requests de CPU e memória e limite de memória em todos os containers."
+      expression: >-
+        variables.containers.all(c, has(c.resources) &&
+          has(c.resources.requests) && 'cpu' in c.resources.requests &&
+          'memory' in c.resources.requests &&
+          has(c.resources.limits) && 'memory' in c.resources.limits)
+    - message: "Use versão explícita da imagem: ':latest' ou imagem sem tag não dizem o que está rodando."
+      expression: >-
+        variables.containers.all(c,
+          c.image.contains('@sha256:') ||
+          (c.image.split('/')[size(c.image.split('/')) - 1].contains(':') &&
+           !c.image.endsWith(':latest')))
+    - message: "Imagens só podem vir de registros confiáveis (veja a variável registrosConfiaveis)."
+      expression: >-
+        variables.containers.all(c,
+          variables.registrosConfiaveis.exists(r, c.image.startsWith(r)))
+    - message: "A API precisa de readinessProbe e livenessProbe."
+      expression: >-
+        !has(object.metadata.name) || !object.metadata.name.startsWith('kpi-api') ||
+        variables.containers.all(c, has(c.readinessProbe) && has(c.livenessProbe))

@@ -1,0 +1,11 @@
+# PodDisruptionBudget: em manutenção de nós (drain), no máximo 1 pod da API
+# é derrubado por vez — a API continua no ar durante atualizações do cluster.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: kpi-api
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kpi-api

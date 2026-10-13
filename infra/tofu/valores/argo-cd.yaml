@@ -1,0 +1,21 @@
+# Argo CD — valores para laboratório local.
+# Em produção: TLS no ingress, SSO (Dex/OIDC com o IdP da instituição),
+# RBAC por projeto e alta disponibilidade (ha.enabled).
+global:
+  domain: argocd.${dominio}
+
+configs:
+  params:
+    server.insecure: true # TLS termina no ingress; aceitável SÓ em laboratório local
+  cm:
+    # Detecta mudanças no Git a cada 60s (com webhook do GitHub fica instantâneo).
+    timeout.reconciliation: 60s
+    # O Argo CD já reconhece a "saúde" dos Rollouts nativamente (inclusive canary pausado).
+
+dex:
+  enabled: false
+
+server:
+  ingress:
+    enabled: true
+    ingressClassName: traefik

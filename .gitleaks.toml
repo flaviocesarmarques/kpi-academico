@@ -1,0 +1,12 @@
+# Gitleaks: usa as regras padrão e ignora apenas arquivos criptografados pelo
+# SOPS (o conteúdo ENC[...] parece "aleatório" mas é seguro de versionar).
+# Nunca adicione exceções para arquivos com segredo em texto puro.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Segredos criptografados com SOPS e valores fictícios de teste"
+paths = [
+  '''deploy/secrets/.*\.enc\.yaml$''',
+  '''uv\.lock$''',
+]
