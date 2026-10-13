@@ -47,6 +47,11 @@ jobs:
         with:
           persist-credentials: false # não deixa o token gravado no .git/config
       - uses: ./.github/actions/setup-python-uv
+      - name: Instalar OpenTofu (usado pelo hook tofu_fmt)
+        uses: opentofu/setup-opentofu@a1320f892987e89d278cc92dc5adc984fb93aca4 # v2.0.2
+        with:
+          tofu_version: 1.13.1
+          tofu_wrapper: false
       - name: Rodar hooks
         env:
           SKIP: no-commit-to-branch # regra útil só na máquina do desenvolvedor
