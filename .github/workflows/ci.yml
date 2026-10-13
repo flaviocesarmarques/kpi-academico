@@ -182,7 +182,24 @@ jobs:
       - name: Scan da imagem com Trivy (falha em CRITICAL/HIGH com correção disponível)
         # Trivy executado via imagem oficial com versão fixa, em vez de uma Action
         # de terceiros: menos código externo com acesso ao seu pipeline.
+        # Cada vulnerabilidade vira uma ANOTAÇÃO no GitHub (visível no PR e no
+        # resumo da execução) e a tabela completa vai para o resumo do job.
         run: |
-          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+          mkdir -p reports
+          falhou=0
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD/reports:/out" \
             aquasec/trivy:0.75.0 image --exit-code 1 --ignore-unfixed \
-            --severity CRITICAL,HIGH --no-progress kpi-academico:ci
+            --severity CRITICAL,HIGH --no-progress --format json --output /out/trivy.json \
+            kpi-academico:ci || falhou=1
+          jq -r '.Results[]? | .Target as $alvo | .Vulnerabilities[]? |
+            "::error title=\(.VulnerabilityID) (\(.Severity))::\(.PkgName) \(.InstalledVersion) → corrigido em \(.FixedVersion) [\($alvo)]"' \
+            reports/trivy.json
+          {
+            echo "### Trivy — imagem kpi-academico:ci"
+            echo "| CVE | Severidade | Pacote | Instalado | Corrigido em |"
+            echo "|---|---|---|---|---|"
+            jq -r '.Results[]? | .Vulnerabilities[]? |
+              "| \(.VulnerabilityID) | \(.Severity) | \(.PkgName) | \(.InstalledVersion) | \(.FixedVersion) |"' \
+              reports/trivy.json
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$falhou"

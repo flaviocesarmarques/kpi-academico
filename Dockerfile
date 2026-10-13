@@ -57,6 +57,14 @@ LABEL org.opencontainers.image.title="kpi-academico" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${REVISION}"
 
+# Correções de segurança do Debian publicadas depois da imagem base: o scan
+# (Trivy) reprova a imagem quando há CVE alta/crítica COM correção disponível.
+# Limpar as listas do apt na mesma camada mantém a imagem pequena.
+# hadolint ignore=DL3005
+RUN apt-get update && \
+    apt-get upgrade -y --no-install-recommends && \
+    rm -rf /var/lib/apt/lists/*
+
 # Usuário sem privilégios, UID/GID fixos (10001) — nunca rode como root.
 RUN groupadd --gid 10001 app && \
     useradd --uid 10001 --gid app --no-create-home --shell /usr/sbin/nologin app
