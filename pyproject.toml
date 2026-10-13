@@ -27,6 +27,7 @@ requires-python = ">=3.12"
 authors = [{ name = "Coordenação dos Cursos de TI" }]
 dependencies = [
   "fastapi>=0.143,<1.0",                      # framework web assíncrono com OpenAPI automático
+  "starlette>=1.3.1",                          # piso de segurança: versões anteriores têm CVEs (pip-audit)
   "uvicorn[standard]>=0.30,<1.0",              # servidor ASGI de produção
   "sqlalchemy>=2.1,<3",                       # ORM (estilo tipado 2.x)
   "alembic>=1.20,<2",                         # migrações de banco versionadas (schema como código)
