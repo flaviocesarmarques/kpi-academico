@@ -100,3 +100,18 @@ def test_producao_recusa_chave_de_exemplo() -> None:
 def test_limiares_incoerentes() -> None:
     with pytest.raises(ValueError, match="limite_amarelo"):
         Settings(limite_verde=80, limite_amarelo=90)
+
+
+def test_indicador_com_fonte_de_dados(cliente: TestClient) -> None:
+    dados = {
+        "codigo": "EST-09",
+        "nome": "Taxa de diplomação",
+        "dimensao": "trajetoria_estudante",
+        "unidade": "%",
+        "meta": 60,
+        "polaridade": "maior_melhor",
+        "fonte_dados": "Censo da Educação Superior",
+    }
+    resposta = cliente.post("/api/v1/indicadores", json=dados, headers=CABECALHO)
+    assert resposta.status_code == 201
+    assert resposta.json()["fonte_dados"] == "Censo da Educação Superior"
