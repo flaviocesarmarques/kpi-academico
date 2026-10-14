@@ -11,9 +11,9 @@
 #   • Escala: o mesmo playbook prepara 40 máquinas de um laboratório,
 #     trocando só o inventário (inventario.ini).
 #
-# Uso:
+# Uso (o -K pede a senha do seu usuário do Ubuntu, usada pelo sudo):
 #   uvx --from ansible-core ansible-playbook -i infra/ansible/inventario.ini \
-#       infra/ansible/estacao-devops.yml --ask-become-pass
+#       infra/ansible/estacao-devops.yml -K
 #
 # Customização: altere as versões em `vars` (o Dependabot não as acompanha;
 # revise-as a cada semestre).
@@ -24,6 +24,7 @@
   vars:
     arquitetura: "{{ 'arm64' if ansible_facts['architecture'] == 'aarch64' else 'amd64' }}"
     usuario_dev: "{{ ansible_env.SUDO_USER | default(ansible_user_id) }}"
+    em_wsl: "{{ 'microsoft' in (ansible_facts['kernel'] | lower) }}"
     versoes:
       kubectl: v1.35.9 # mesma minor do k3s em infra/k3d/cluster.yaml
       k3d: v5.9.0
@@ -45,26 +46,40 @@
         update_cache: true
         cache_valid_time: 3600
 
-    # No WSL com Docker Desktop, o comando "docker" já existe (integração WSL):
-    # instalar o docker.io por cima criaria dois Dockers concorrentes.
+    # No WSL (Windows), o Docker vem do Docker Desktop pela integração WSL:
+    # instalar o docker.io dentro do Ubuntu cria dois Dockers concorrentes
+    # ("Failed to start docker.service"). Por isso, no WSL, nunca instalamos.
     - name: Verificar se o Docker já está disponível
       ansible.builtin.command: docker --version
       register: docker_existente
       changed_when: false
       failed_when: false
 
-    - name: Docker Engine (pacote da distribuição), se ainda não houver Docker
+    - name: Docker Engine (pacote da distribuição) — só em Linux nativo, sem Docker
       ansible.builtin.apt:
         name: [docker.io, docker-compose-v2]
         state: present
-      when: docker_existente.rc != 0
+      when:
+        - docker_existente.rc != 0
+        - not em_wsl
 
     - name: Usuário no grupo docker (requer novo login para valer)
       ansible.builtin.user:
         name: "{{ usuario_dev }}"
         groups: docker
         append: true
-      when: docker_existente.rc != 0
+      when:
+        - docker_existente.rc != 0
+        - not em_wsl
+
+    - name: Aviso — no WSL, ative a integração do Docker Desktop
+      ansible.builtin.debug:
+        msg: >-
+          Docker não encontrado no Ubuntu. Abra o Docker Desktop no Windows e ative
+          Settings > Resources > WSL integration > Ubuntu; depois rode "wsl --shutdown".
+      when:
+        - docker_existente.rc != 0
+        - em_wsl
 
     - name: Binários únicos (download com versão fixa)
       ansible.builtin.get_url:
