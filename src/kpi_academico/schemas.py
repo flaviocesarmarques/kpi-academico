@@ -25,6 +25,9 @@ class IndicadorEntrada(BaseModel):
     meta: float = Field(ge=0)
     polaridade: Polaridade
     eixo_inep: str | None = Field(default=None, max_length=100)
+    fonte_dados: str | None = Field(
+        default=None, max_length=100, examples=["Censo da Educação Superior"]
+    )
 
 
 class IndicadorSaida(IndicadorEntrada):
