@@ -52,10 +52,16 @@ avançada, porque o CodeQL já roda pelo workflow `security.yml`.
 | Segredo | Para quê | Obrigatório? |
 |---|---|---|
 | `SONAR_TOKEN` | Análise no SonarQube Cloud | Não. Sem ele, o job é pulado |
+| `RELEASE_APP_PRIVATE_KEY` | Chave privada do GitHub App de release (seção 7) | Sim, para o `release.yml` |
 
-Nenhum outro segredo é necessário: o GHCR, o Cosign e as atestações usam o token
-efêmero e o OIDC do próprio GitHub Actions. Esse é o padrão recomendado: sem
-credenciais de longa duração guardadas.
+| Variável (*Settings → Secrets and variables → Actions → Variables*) | Para quê |
+|---|---|
+| `RELEASE_APP_CLIENT_ID` | Client ID do GitHub App de release (não é segredo) |
+
+O GHCR, o Cosign e as atestações usam o token efêmero e o OIDC do próprio
+GitHub Actions, sem credenciais de longa duração. A chave do GitHub App é a
+única exceção, e ela gera tokens que **expiram em 1 hora** e valem só para este
+repositório.
 
 ### SonarQube Cloud
 1. Entre em sonarcloud.io com a conta do GitHub e importe o repositório.
@@ -67,9 +73,28 @@ credenciais de longa duração guardadas.
 Depois da primeira release, em *Packages → kpi-academico → Package settings*,
 deixe o pacote **público**. Assim o cluster local baixa a imagem sem credencial.
 
-## 7. Opcional: GitHub App para PRs automáticos
+## 7. GitHub App para os PRs automáticos (release e GitOps)
 
-PRs criados com o `GITHUB_TOKEN` não disparam outros workflows (proteção contra
-loops). Para que o CI rode automaticamente nos PRs de release e GitOps, crie um
-GitHub App com permissão de *Contents* e *Pull requests*, instale no repositório
-e gere o token nos workflows com `actions/create-github-app-token`.
+**Problema:** PRs criados com o `GITHUB_TOKEN` não disparam workflows (proteção
+contra loops) ou ficam aguardando aprovação manual. Sem CI, os checks
+obrigatórios do ruleset nunca chegam e o PR fica bloqueado.
+
+**Solução:** o `release.yml` gera, a cada execução, um token de curta duração de
+um GitHub App próprio (`actions/create-github-app-token`). PRs abertos pelo App
+disparam o CI normalmente.
+
+1. *Settings* da sua conta → *Developer settings* → *GitHub Apps* → **New GitHub App**.
+   - Nome: ex. `kpi-academico-release-<usuario>` (precisa ser único no GitHub).
+   - Homepage URL: a URL do repositório.
+   - **Webhook**: desmarque *Active*.
+   - *Repository permissions*: **Contents: Read and write** e
+     **Pull requests: Read and write**. Nada além disso (menor privilégio).
+   - *Where can this GitHub App be installed?*: **Only on this account**.
+2. Na página do App, anote o **Client ID** e gere uma **private key** (`.pem`).
+3. *Install App* → instale **somente** no repositório `kpi-academico`.
+4. No repositório:
+   - variável `RELEASE_APP_CLIENT_ID` = Client ID;
+   - segredo `RELEASE_APP_PRIVATE_KEY` = conteúdo inteiro do `.pem`.
+5. Apague o `.pem` do computador depois de cadastrá-lo (ou guarde-o num cofre de senhas).
+
+Se a chave vazar: gere outra na página do App, troque o segredo e revogue a antiga.
