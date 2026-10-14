@@ -43,10 +43,41 @@
   tasks:
     - name: Pacotes base
       ansible.builtin.apt:
-        name: [ca-certificates, curl, git, jq, make, unzip, gnupg, openssl, gh]
+        name: [ca-certificates, curl, git, jq, make, unzip, gnupg, openssl]
         state: present
         update_cache: true
         cache_valid_time: 3600
+
+    # GitHub CLI pelo repositório OFICIAL: o pacote "gh" do Ubuntu fica várias
+    # versões atrás (ex.: sem "gh attestation verify", usado na etapa 5).
+    # Ferramenta que evolui rápido → fonte do fornecedor, não da distribuição.
+    - name: Diretório de chaves do apt
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: "0755"
+
+    - name: Chave do repositório oficial do GitHub CLI
+      ansible.builtin.get_url:
+        url: https://cli.github.com/packages/githubcli-archive-keyring.gpg
+        dest: /etc/apt/keyrings/githubcli-archive-keyring.gpg
+        mode: "0644"
+
+    - name: Repositório oficial do GitHub CLI
+      ansible.builtin.apt_repository:
+        repo: >-
+          deb [arch={{ arquitetura }} signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg]
+          https://cli.github.com/packages stable main
+        filename: github-cli
+        state: present
+
+    # "latest" (e não "present") de propósito: substitui um gh antigo do Ubuntu
+    # que já esteja instalado. O gh não tem versão fixa aqui porque é só cliente.
+    - name: GitHub CLI atualizado
+      ansible.builtin.apt:
+        name: gh
+        state: latest # noqa: package-latest
+        update_cache: true
 
     # No WSL (Windows), o Docker vem do Docker Desktop pela integração WSL:
     # instalar o docker.io dentro do Ubuntu cria dois Dockers concorrentes
@@ -158,4 +189,5 @@
         - sops --version
         - kubectl-argo-rollouts version --short
         - cosign version
+        - gh --version
       changed_when: false

@@ -24,7 +24,7 @@ está instalado, o que falta e como instalar cada item. Ele não instala nada so
 | **uv** | 1–10 | Sim | Instala o Python, as dependências e ferramentas como pre-commit e Ansible |
 | **Docker** (com Compose v2) | 2–10 | Sim | Containers, Testcontainers, ZAP, k6 e o cluster k3d |
 | jq, openssl | 4–7 | Recomendada | Ler JSON e gerar senhas dos segredos |
-| gh (GitHub CLI) | 1–10 | Recomendada | PRs, execuções do Actions e verificação de atestados |
+| gh (GitHub CLI) **2.49+** | 1–10 | Recomendada | PRs, execuções do Actions e verificação de atestados (instale pelo repositório oficial) |
 | cosign | 5 | Recomendada | Verificar a assinatura das imagens |
 | kubectl, k3d, helm | 6–10 | Sim, a partir da 6 | Cluster Kubernetes local |
 | tofu (OpenTofu) | 6–10 | Sim, a partir da 6 | Infraestrutura como código (o hook `tofu_fmt` usa ao editar `.tf`) |
@@ -53,8 +53,18 @@ Depois, no terminal **Ubuntu**, siga as instruções de Linux abaixo, exceto a d
 
 ### Linux / WSL (Ubuntu)
 ```bash
-sudo apt update && sudo apt install -y git make curl jq openssl gh
+sudo apt update && sudo apt install -y git make curl jq openssl
 curl -LsSf https://astral.sh/uv/install.sh | sh          # depois: exec $SHELL
+
+# GitHub CLI pelo repositório OFICIAL (o "gh" do apt do Ubuntu é antigo e não
+# tem "gh attestation", usado na etapa 5):
+sudo mkdir -p -m 755 /etc/apt/keyrings
+curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+  | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null
+sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+  | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+sudo apt update && sudo apt install -y gh
 # Docker (somente Linux nativo; no WSL use o Docker Desktop):
 curl -fsSL https://get.docker.com | sh && sudo usermod -aG docker $USER   # saia e entre na sessão
 ```
@@ -91,4 +101,5 @@ make setup          # dependências do projeto e hooks do pre-commit
 | `Failed to start docker.service` (WSL) | Há um Docker Engine instalado **dentro** do Ubuntu, conflitando com o Docker Desktop. Remova-o: `sudo systemctl disable --now docker.service docker.socket` e `sudo apt remove -y docker.io docker-ce docker-ce-cli containerd.io docker-compose-v2 docker-compose-plugin`. Depois rode `wsl --shutdown` no PowerShell, reabra o Ubuntu e teste `docker run --rm hello-world` |
 | Tudo muito lento no WSL | O projeto está em `/mnt/c/...`. Clone em `~/` dentro do Ubuntu |
 | Ansible: `Timed out waiting for become success or become password prompt` | O Ubuntu 25.10+ usa o **sudo-rs**, cujo prompt o Ansible não reconhece. Use `make estacao`, que usa o sudo clássico (`sudo.ws`). Sem o `sudo.ws`: `sudo apt install sudo` |
+| `unknown command "attestation" for "gh"` | O `gh` veio do `apt` do Ubuntu, que é antigo. Instale pelo repositório oficial (seção Linux acima) ou rode `make estacao`. Confira com `gh --version` (2.49+) |
 | `tofu: command not found` ao commitar | Você editou um arquivo `.tf` sem ter o OpenTofu instalado. Instale-o (etapa 6) |
