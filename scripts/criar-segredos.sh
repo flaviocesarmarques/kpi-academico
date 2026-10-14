@@ -18,6 +18,8 @@ CHAVE_API="$(openssl rand -hex 32)"
 DESTINO="deploy/secrets/kpi-${AMBIENTE}.enc.yaml"
 mkdir -p deploy/secrets
 
+# --filename-override só escolhe a regra do .sops.yaml; o arquivo não é lido.
+# shellcheck disable=SC2094
 cat <<EOF | sops --encrypt --filename-override "$DESTINO" --input-type yaml --output-type yaml /dev/stdin > "$DESTINO"
 apiVersion: v1
 kind: Secret

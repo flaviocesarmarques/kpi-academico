@@ -11,9 +11,11 @@
 #   • Escala: o mesmo playbook prepara 40 máquinas de um laboratório,
 #     trocando só o inventário (inventario.ini).
 #
-# Uso:
+# Uso recomendado:   make estacao
+#   (detecta o sudo-rs do Ubuntu 25.10+ e pede a senha do usuário do Ubuntu)
+# Manual:
 #   uvx --from ansible-core ansible-playbook -i infra/ansible/inventario.ini \
-#       infra/ansible/estacao-devops.yml --ask-become-pass
+#       infra/ansible/estacao-devops.yml -K -e ansible_become_exe=sudo.ws
 #
 # Customização: altere as versões em `vars` (o Dependabot não as acompanha;
 # revise-as a cada semestre).
@@ -24,6 +26,7 @@
   vars:
     arquitetura: "{{ 'arm64' if ansible_facts['architecture'] == 'aarch64' else 'amd64' }}"
     usuario_dev: "{{ ansible_env.SUDO_USER | default(ansible_user_id) }}"
+    em_wsl: "{{ 'microsoft' in (ansible_facts['kernel'] | lower) }}"
     versoes:
       kubectl: v1.35.9 # mesma minor do k3s em infra/k3d/cluster.yaml
       k3d: v5.9.0
@@ -34,26 +37,51 @@
       k6: v2.3.0
       argocd: v3.5.5
       cosign: v3.1.3
+      argo_rollouts: v1.10.1
     destino_binarios: /usr/local/bin
 
   tasks:
     - name: Pacotes base
       ansible.builtin.apt:
-        name: [ca-certificates, curl, git, jq, make, unzip, gnupg]
+        name: [ca-certificates, curl, git, jq, make, unzip, gnupg, openssl, gh]
         state: present
         update_cache: true
         cache_valid_time: 3600
 
-    - name: Docker Engine (pacote da distribuição)
+    # No WSL (Windows), o Docker vem do Docker Desktop pela integração WSL:
+    # instalar o docker.io dentro do Ubuntu cria dois Dockers concorrentes
+    # ("Failed to start docker.service"). Por isso, no WSL, nunca instalamos.
+    - name: Verificar se o Docker já está disponível
+      ansible.builtin.command: docker --version
+      register: docker_existente
+      changed_when: false
+      failed_when: false
+
+    - name: Docker Engine (pacote da distribuição) — só em Linux nativo, sem Docker
       ansible.builtin.apt:
         name: [docker.io, docker-compose-v2]
         state: present
+      when:
+        - docker_existente.rc != 0
+        - not em_wsl
 
     - name: Usuário no grupo docker (requer novo login para valer)
       ansible.builtin.user:
         name: "{{ usuario_dev }}"
         groups: docker
         append: true
+      when:
+        - docker_existente.rc != 0
+        - not em_wsl
+
+    - name: Aviso — no WSL, ative a integração do Docker Desktop
+      ansible.builtin.debug:
+        msg: >-
+          Docker não encontrado no Ubuntu. Abra o Docker Desktop no Windows e ative
+          Settings > Resources > WSL integration > Ubuntu; depois rode "wsl --shutdown".
+      when:
+        - docker_existente.rc != 0
+        - em_wsl
 
     - name: Binários únicos (download com versão fixa)
       ansible.builtin.get_url:
@@ -71,6 +99,9 @@
           url: "https://github.com/argoproj/argo-cd/releases/download/{{ versoes.argocd }}/argocd-linux-{{ arquitetura }}"
         - nome: cosign
           url: "https://github.com/sigstore/cosign/releases/download/{{ versoes.cosign }}/cosign-linux-{{ arquitetura }}"
+        # Plugin do kubectl: "kubectl argo rollouts get/promote/abort" (etapa 8)
+        - nome: kubectl-argo-rollouts
+          url: "https://github.com/argoproj/argo-rollouts/releases/download/{{ versoes.argo_rollouts }}/kubectl-argo-rollouts-linux-{{ arquitetura }}"
       loop_control:
         label: "{{ item.nome }}"
 
@@ -125,4 +156,6 @@
         - helm version --short
         - tofu version
         - sops --version
+        - kubectl-argo-rollouts version --short
+        - cosign version
       changed_when: false
