@@ -93,7 +93,19 @@ verificar jq      0 "ler JSON no terminal (respostas da API, relatórios)" \
 verificar openssl 0 "gerar senhas fortes (scripts/criar-segredos.sh)" \
   "$APT openssl" "já vem no macOS" "version"
 verificar gh      0 "GitHub CLI: PRs, execuções do Actions, verificar atestados" \
-  "$APT gh   (ou veja https://github.com/cli/cli#installation)" "brew install gh"
+  "instale pelo repositório OFICIAL (o 'gh' do apt do Ubuntu é antigo): veja docs/pre-requisitos.md ou rode $PLAYBOOK" \
+  "brew install gh"
+# O "gh" do apt do Ubuntu costuma ser antigo: "gh attestation" (etapa 5) exige 2.49+.
+GH_MINIMO="2.49.0"
+if command -v gh >/dev/null 2>&1; then
+  gh_versao="$(gh --version 2>/dev/null | head -n1 | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -n1)"
+  if [[ -n "$gh_versao" && "$(printf '%s\n' "$GH_MINIMO" "$gh_versao" | sort -V | head -n1)" != "$GH_MINIMO" ]]; then
+    printf "  %s●%s %-22s %s\n" "$AMARELO" "$FIM" "gh (versão)" "$gh_versao é antiga: 'gh attestation' exige $GH_MINIMO+"
+    PENDENCIAS+=("gh (versão): $(dica \
+      "atualize pelo repositório oficial do GitHub CLI (docs/pre-requisitos.md) ou rode $PLAYBOOK" \
+      "brew upgrade gh")")
+  fi
+fi
 verificar cosign  0 "verificar assinatura das imagens publicadas (etapa 5)" \
   "use o playbook Ansible (abaixo)" "brew install cosign"
 
@@ -190,7 +202,7 @@ else
   for p in "${PENDENCIAS[@]}"; do echo "   - $p"; done
   if [[ "$SO" != "macos" ]]; then
     printf "\n  %sAtalho para as etapas 6–10%s (instala kubectl, k3d, helm, tofu, sops, age,\n" "$NEGRITO" "$FIM"
-    echo "  argo rollouts, argocd, cosign, k6 e gh com versões fixas; requer uv e sudo):"
+    echo "  argo rollouts, argocd, cosign e k6 com versões fixas, e gh atualizado; requer uv e sudo):"
     echo "    $PLAYBOOK"
   fi
 fi
