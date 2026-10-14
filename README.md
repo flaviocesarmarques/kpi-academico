@@ -33,8 +33,15 @@ Todas as ferramentas usadas são livres ou gratuitas.
 
 ## Início rápido (5 minutos)
 
+Antes de tudo, verifique o que falta instalar
+([guia completo de pré-requisitos](docs/pre-requisitos.md)):
+
 ```bash
-# Pré-requisitos: Git, Python 3.12+, uv (https://docs.astral.sh/uv) e Docker
+bash scripts/verificar-ambiente.sh   # Linux, macOS ou WSL  (Windows: scripts\verificar-ambiente.ps1)
+```
+
+```bash
+# Pré-requisitos: git, make, uv (instala o Python sozinho) e Docker
 scripts/configurar-repo.sh <seu-usuario-github>   # personaliza o repositório (uma vez)
 make setup        # dependências + hooks do pre-commit
 make teste        # testes com cobertura
@@ -48,6 +55,7 @@ make compose compose-seed
 
 | Etapa | O que praticar | Onde está |
 |---|---|---|
+| 0. Preparar o ambiente | Diagnóstico de pré-requisitos, instalação idempotente com Ansible | `scripts/verificar-ambiente.*`, `docs/pre-requisitos.md` |
 | 1. Planejar e codificar | Issues/PR templates, CODEOWNERS, trunk-based, Conventional Commits, pre-commit | `.github/`, `.pre-commit-config.yaml`, `CONTRIBUTING.md` |
 | 2. Integração contínua | Lint, tipos, testes (unitários, API, migrações, PostgreSQL real), cobertura mínima, matriz | `.github/workflows/ci.yml`, `tests/` |
 | 3. Qualidade e DevSecOps | SonarQube, CodeQL, Gitleaks, pip-audit, Dependabot, Trivy, Hadolint, Checkov, Scorecard | `security.yml`, `scorecard.yml`, `dependabot.yml` |

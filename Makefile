@@ -5,14 +5,22 @@
 .DEFAULT_GOAL := ajuda
 SHELL := /bin/bash
 CLUSTER := kpi
-.PHONY: ajuda setup teste teste-integracao lint tipos rodar migrar seed compose compose-seed \
+.PHONY: ajuda verificar verificar-tudo setup teste teste-integracao lint tipos rodar migrar seed compose compose-seed \
         cluster cluster-destruir plataforma segredos-chave segredos-aplicar carga caos
 
 ajuda: ## Lista os alvos disponíveis
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-20s\033[0m %s\n",$$1,$$2}'
 
+# ---------- Pré-requisitos (etapa 0) ----------------------------------------
+verificar: ## Diagnóstico do ambiente: o que falta instalar (etapas 1–5)
+	@bash scripts/verificar-ambiente.sh
+
+verificar-tudo: ## Diagnóstico completo, incluindo Kubernetes local (etapas 6–10)
+	@bash scripts/verificar-ambiente.sh --tudo
+
 # ---------- Desenvolvimento (etapas 1–3) ------------------------------------
 setup: ## Instala dependências (uv.lock) e hooks do pre-commit
+	@command -v uv >/dev/null || { echo "uv não encontrado. Rode 'make verificar' para ver como instalar."; exit 1; }
 	uv sync --extra dev
 	uv run pre-commit install --install-hooks
 

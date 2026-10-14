@@ -11,8 +11,16 @@ etapas 6 a 10 sobem um cluster Kubernetes local, que pede cerca de 8 GB de RAM l
 
 ## Etapa 0 — Preparação
 
-1. Crie um repositório **público** vazio chamado `kpi-academico` no GitHub.
-2. Extraia este projeto, personalize e envie:
+1. **Verifique o ambiente antes de tudo.** O diagnóstico mostra o que falta e
+   como instalar ([detalhes em pre-requisitos.md](pre-requisitos.md)):
+   ```bash
+   bash scripts/verificar-ambiente.sh        # Linux, macOS ou WSL
+   ```
+   No Windows, rode antes no PowerShell:
+   `powershell -ExecutionPolicy Bypass -File scripts\verificar-ambiente.ps1`.
+   Siga só quando o diagnóstico terminar com **"Tudo pronto!"**.
+2. Crie um repositório **público** vazio chamado `kpi-academico` no GitHub.
+3. Extraia este projeto, personalize e envie:
    ```bash
    scripts/configurar-repo.sh <seu-usuario>
    git init -b main && git add -A
@@ -20,8 +28,9 @@ etapas 6 a 10 sobem um cluster Kubernetes local, que pede cerca de 8 GB de RAM l
    git remote add origin https://github.com/<seu-usuario>/kpi-academico.git
    git push -u origin main
    ```
-3. Faça a configuração única descrita em [configuracao-github.md](configuracao-github.md).
-4. Opcional: prepare a máquina com o Ansible (instala k3d, kubectl, helm, tofu, sops, age, k6 etc.):
+4. Faça a configuração única descrita em [configuracao-github.md](configuracao-github.md).
+5. Antes da etapa 6, rode `make verificar-tudo`. O playbook Ansible instala de
+   uma vez kubectl, k3d, helm, tofu, sops, age, argo rollouts, argocd, cosign e k6:
    ```bash
    uvx --from ansible-core ansible-playbook -i infra/ansible/inventario.ini \
        infra/ansible/estacao-devops.yml --ask-become-pass
@@ -133,6 +142,7 @@ O release-please propõe uma versão **major**.
 **Objetivo:** recriar o ambiente inteiro a partir do Git.
 
 ```bash
+make verificar-tudo                            # confira kubectl, k3d, helm, tofu, sops...
 make cluster                                   # k3d: 1 servidor + 2 agentes
 cp infra/tofu/terraform.tfvars.exemplo infra/tofu/terraform.tfvars
 cd infra/tofu && tofu init && tofu plan        # LEIA o plano antes de aplicar

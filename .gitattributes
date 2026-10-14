@@ -5,3 +5,6 @@
 # Arquivos gerados: não poluem a revisão de PR nem as estatísticas de linguagem.
 uv.lock linguist-generated=true -diff
 CHANGELOG.md linguist-generated=true
+
+# Scripts PowerShell: CRLF e BOM para o Windows PowerShell 5.1 ler acentos corretamente.
+*.ps1 text eol=crlf
