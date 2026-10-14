@@ -67,7 +67,7 @@ services:
 
   # Servidor de feature flags (etapa 8). Painel: admin / unleash4all (troque!).
   unleash:
-    image: unleashorg/unleash-server:7
+    image: unleashorg/unleash-server:8
     profiles: [flags]
     ports:
       - "4242:4242"
