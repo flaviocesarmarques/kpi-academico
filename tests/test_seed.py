@@ -12,4 +12,7 @@ def test_seed_idempotente() -> None:
     with Session(get_engine()) as sessao:
         assert carregar(sessao) == len(INDICADORES) * len(CURSOS) * len(PERIODOS)
         assert carregar(sessao) == 0
-        assert sessao.scalar(select(func.count(Medicao.id))) == 96
+        # modificação para teste dinâmico - Passo 4
+        assert sessao.scalar(select(func.count(Medicao.id))) == (
+            len(INDICADORES) * len(CURSOS) * len(PERIODOS)
+        )

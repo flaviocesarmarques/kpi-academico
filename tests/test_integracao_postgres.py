@@ -17,7 +17,9 @@ from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
 from kpi_academico.models import Medicao
-from kpi_academico.seed import carregar
+
+# Passo 4 - from kpi_academico.seed import carregar
+from kpi_academico.seed import CURSOS, INDICADORES, PERIODOS, carregar
 
 pytestmark = pytest.mark.integration
 postgres = pytest.importorskip("testcontainers.postgres")
@@ -44,4 +46,7 @@ def test_migracoes_e_seed_no_postgres() -> None:
 
         with Session(create_engine(url)) as sessao:
             assert carregar(sessao) > 0
-            assert sessao.scalar(select(func.count(Medicao.id))) == 96
+            # Troca passo 4 - assert sessao.scalar(select(func.count(Medicao.id))) == 96
+            assert sessao.scalar(select(func.count(Medicao.id))) == (
+                len(INDICADORES) * len(CURSOS) * len(PERIODOS)
+            )
