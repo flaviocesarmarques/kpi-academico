@@ -60,8 +60,7 @@ curl -fsSL https://get.docker.com | sh && sudo usermod -aG docker $USER   # saia
 ```
 Ferramentas das etapas 6 a 10, com versões fixas, num único comando idempotente:
 ```bash
-uvx --from ansible-core ansible-playbook -i infra/ansible/inventario.ini \
-    infra/ansible/estacao-devops.yml -K
+make estacao        # pede a senha do usuário do Ubuntu em "BECOME password:"
 ```
 
 ### macOS (Homebrew)
@@ -91,4 +90,5 @@ make setup          # dependências do projeto e hooks do pre-commit
 | `Cannot connect to the Docker daemon` | O Docker está parado. No Windows, abra o Docker Desktop e confira se a integração WSL com o Ubuntu está ativa |
 | `Failed to start docker.service` (WSL) | Há um Docker Engine instalado **dentro** do Ubuntu, conflitando com o Docker Desktop. Remova-o: `sudo systemctl disable --now docker.service docker.socket` e `sudo apt remove -y docker.io docker-ce docker-ce-cli containerd.io docker-compose-v2 docker-compose-plugin`. Depois rode `wsl --shutdown` no PowerShell, reabra o Ubuntu e teste `docker run --rm hello-world` |
 | Tudo muito lento no WSL | O projeto está em `/mnt/c/...`. Clone em `~/` dentro do Ubuntu |
+| Ansible: `Timed out waiting for become success or become password prompt` | O Ubuntu 25.10+ usa o **sudo-rs**, cujo prompt o Ansible não reconhece. Use `make estacao`, que usa o sudo clássico (`sudo.ws`). Sem o `sudo.ws`: `sudo apt install sudo` |
 | `tofu: command not found` ao commitar | Você editou um arquivo `.tf` sem ter o OpenTofu instalado. Instale-o (etapa 6) |

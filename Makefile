@@ -5,7 +5,7 @@
 .DEFAULT_GOAL := ajuda
 SHELL := /bin/bash
 CLUSTER := kpi
-.PHONY: ajuda verificar verificar-tudo setup teste teste-integracao lint tipos rodar migrar seed compose compose-seed \
+.PHONY: ajuda verificar verificar-tudo estacao setup teste teste-integracao lint tipos rodar migrar seed compose compose-seed \
         cluster cluster-destruir plataforma segredos-chave segredos-aplicar carga caos
 
 ajuda: ## Lista os alvos disponíveis
@@ -17,6 +17,16 @@ verificar: ## Diagnóstico do ambiente: o que falta instalar (etapas 1–5)
 
 verificar-tudo: ## Diagnóstico completo, incluindo Kubernetes local (etapas 6–10)
 	@bash scripts/verificar-ambiente.sh --tudo
+
+# Ubuntu 25.10+ usa o sudo-rs como padrão, e o Ansible não reconhece o prompt
+# de senha dele (falha com "Timed out waiting for become ... password prompt").
+# Quando o sudo clássico existe (sudo.ws), ele é usado só para o Ansible.
+estacao: ## Instala as ferramentas das etapas 6–10 via Ansible (pede a senha do Ubuntu)
+	@BECOME_EXE=$$(command -v sudo.ws >/dev/null 2>&1 && echo sudo.ws || echo sudo); \
+	echo "Usando '$$BECOME_EXE'. Em 'BECOME password:', digite a senha do seu usuário do Ubuntu."; \
+	ANSIBLE_TIMEOUT=60 uvx --from ansible-core ansible-playbook \
+	  -i infra/ansible/inventario.ini infra/ansible/estacao-devops.yml \
+	  -K -e ansible_become_exe=$$BECOME_EXE
 
 # ---------- Desenvolvimento (etapas 1–3) ------------------------------------
 setup: ## Instala dependências (uv.lock) e hooks do pre-commit

@@ -67,7 +67,7 @@ verificar() {
 titulo() { printf "\n%s%s%s\n" "$NEGRITO" "$1" "$FIM"; }
 
 APT="sudo apt update && sudo apt install -y"
-PLAYBOOK="uvx --from ansible-core ansible-playbook -i infra/ansible/inventario.ini infra/ansible/estacao-devops.yml -K"
+PLAYBOOK="make estacao"
 
 printf "%sDiagnóstico do ambiente — trilha DevOps kpi-academico%s\n" "$NEGRITO" "$FIM"
 printf "Sistema: %s (%s)\n" "$SO" "$(uname -m)"

@@ -32,8 +32,7 @@ etapas 6 a 10 sobem um cluster Kubernetes local, que pede cerca de 8 GB de RAM l
 5. Antes da etapa 6, rode `make verificar-tudo`. O playbook Ansible instala de
    uma vez kubectl, k3d, helm, tofu, sops, age, argo rollouts, argocd, cosign e k6:
    ```bash
-   uvx --from ansible-core ansible-playbook -i infra/ansible/inventario.ini \
-       infra/ansible/estacao-devops.yml --ask-become-pass
+   make estacao        # em "BECOME password:", digite a senha do usuário do Ubuntu
    ```
 
 ---

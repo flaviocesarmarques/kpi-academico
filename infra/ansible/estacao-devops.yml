@@ -11,9 +11,11 @@
 #   • Escala: o mesmo playbook prepara 40 máquinas de um laboratório,
 #     trocando só o inventário (inventario.ini).
 #
-# Uso (o -K pede a senha do seu usuário do Ubuntu, usada pelo sudo):
+# Uso recomendado:   make estacao
+#   (detecta o sudo-rs do Ubuntu 25.10+ e pede a senha do usuário do Ubuntu)
+# Manual:
 #   uvx --from ansible-core ansible-playbook -i infra/ansible/inventario.ini \
-#       infra/ansible/estacao-devops.yml -K
+#       infra/ansible/estacao-devops.yml -K -e ansible_become_exe=sudo.ws
 #
 # Customização: altere as versões em `vars` (o Dependabot não as acompanha;
 # revise-as a cada semestre).
