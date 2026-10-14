@@ -57,6 +57,15 @@ INDICADORES = [
         "Políticas acadêmicas",
     ),
     (
+        "EST-03",
+        "Taxa de evasão no 1º ano",
+        D.TRAJETORIA_ESTUDANTE,
+        "%",
+        15,
+        P.MENOR_MELHOR,
+        "Políticas acadêmicas",
+    ),
+    (
         "DOC-01",
         "Docentes com doutorado",
         D.DOCENTES_INOVACAO,
