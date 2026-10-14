@@ -52,6 +52,12 @@ updates:
       interval: monthly
     commit-message:
       prefix: "build(docker)"
+    ignore:
+      # Major do PostgreSQL é MIGRAÇÃO PLANEJADA (dump/restore ou pg_upgrade e,
+      # na imagem 18+, novo caminho do volume), nunca atualização automática.
+      # Minors e patches (correções de segurança) continuam chegando.
+      - dependency-name: postgres
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: terraform # funciona para provedores do OpenTofu
     directory: /infra/tofu
