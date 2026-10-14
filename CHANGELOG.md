@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.1](https://github.com/flaviocesarmarques/kpi-academico/compare/v0.3.0...v0.3.1) (2026-10-14)
+
+
+### Build e dependências
+
+* **deps:** bump mypy from 1.20.2 to 2.4.0 ([#2](https://github.com/flaviocesarmarques/kpi-academico/issues/2)) ([62c290c](https://github.com/flaviocesarmarques/kpi-academico/commit/62c290caab63c11754eaf76277ce3e9aabb58979))
+* **docker:** bump unleashorg/unleash-server from 7 to 8 ([#1](https://github.com/flaviocesarmarques/kpi-academico/issues/1)) ([94162e6](https://github.com/flaviocesarmarques/kpi-academico/commit/94162e67a97fa5ea412e17fcf08737c8d84db0f7))
+
 ## [0.3.0](https://github.com/flaviocesarmarques/kpi-academico/compare/v0.2.0...v0.3.0) (2026-10-14)
 
 
