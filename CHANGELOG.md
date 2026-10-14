@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/flaviocesarmarques/kpi-academico/compare/v0.2.0...v0.3.0) (2026-10-14)
+
+
+### Novidades
+
+* **kpi:** registra a fonte de dados de cada indicador ([#10](https://github.com/flaviocesarmarques/kpi-academico/issues/10)) ([ee3842b](https://github.com/flaviocesarmarques/kpi-academico/commit/ee3842b497e16ae47b1599be0f29a37614f79e0d))
+
 ## [0.2.0](https://github.com/flaviocesarmarques/kpi-academico/compare/v0.1.0...v0.2.0) (2026-10-14)
 
 

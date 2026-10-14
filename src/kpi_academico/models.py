@@ -61,6 +61,9 @@ class Indicador(Base):
     # Eixo/dimensão do instrumento de avaliação do Inep a que o KPI se relaciona.
     eixo_inep: Mapped[str | None] = mapped_column(String(100))
 
+    # Sistema de origem do dado (ex.: "Censo da Educação Superior", "SIGA", "CPA").
+    fonte_dados: Mapped[str | None] = mapped_column(String(100))
+
     medicoes: Mapped[list["Medicao"]] = relationship(back_populates="indicador")
 
 

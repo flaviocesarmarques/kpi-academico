@@ -19,7 +19,7 @@
 
 [project]
 name = "kpi-academico"
-version = "0.2.0" # x-release-please-version
+version = "0.3.0" # x-release-please-version
 description = "API de indicadores (KPIs) acadêmicos para cursos de graduação de uma IES privada."
 readme = "README.md"
 license = "MIT"
@@ -48,7 +48,7 @@ dev = [
   "pytest-cov>=6,<8",
   "httpx>=0.28,<1",                     # cliente usado pelo TestClient do FastAPI
   "ruff>=0.9,<1",                       # linter + formatador (substitui flake8, isort, black, bandit-lite)
-  "mypy>=1.14,<2",                      # checagem estática de tipos
+  "mypy>=1.14,<3",                      # checagem estática de tipos
   "testcontainers[postgres]>=4.9,<5",   # testes de integração com PostgreSQL real em container
   "pre-commit>=4,<5",
   "pip-audit>=2.7,<3",                  # SCA: procura CVEs nas dependências Python
