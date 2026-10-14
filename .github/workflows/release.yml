@@ -50,16 +50,24 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read # quem escreve é o token do GitHub App (menor privilégio)
     outputs:
       criada: ${{ steps.rp.outputs.release_created }}
       tag: ${{ steps.rp.outputs.tag_name }}
       versao: ${{ steps.rp.outputs.version }}
     steps:
+      - name: Token do GitHub App (PRs abertos pelo App disparam o CI)
+        id: app
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
       - id: rp
         uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         with:
+          token: ${{ steps.app.outputs.token }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
@@ -170,10 +178,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read # quem escreve é o token do GitHub App (menor privilégio)
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Token do GitHub App (PRs abertos pelo App disparam o CI)
+        id: app
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
       - name: Atualizar tag da imagem no overlay de dev
         env:
           TAG: ${{ needs.release-please.outputs.versao }}
@@ -182,6 +197,7 @@ jobs:
       - name: Abrir PR de deploy (revisável e auditável — o Git é a fonte da verdade)
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
+          token: ${{ steps.app.outputs.token }}
           sign-commits: true # commits assinados pelo GitHub (exigido pelo ruleset)
           branch: gitops/dev-${{ needs.release-please.outputs.versao }}
           commit-message: "chore(deploy): dev -> ${{ needs.release-please.outputs.versao }}"
