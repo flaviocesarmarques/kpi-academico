@@ -88,6 +88,7 @@ make setup          # dependências do projeto e hooks do pre-commit
 | `uv: command not found` logo após instalar | O terminal não recarregou o PATH. Abra outro terminal ou rode `exec $SHELL`. Persistindo: `echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc` |
 | `make: command not found` no Windows | O Windows não tem make. Use o terminal Ubuntu (WSL) |
 | `permission denied ... docker.sock` | Usuário fora do grupo docker: `sudo usermod -aG docker $USER` e entre de novo na sessão |
-| `Cannot connect to the Docker daemon` | O Docker está parado. Abra o Docker Desktop ou rode `sudo systemctl start docker` |
+| `Cannot connect to the Docker daemon` | O Docker está parado. No Windows, abra o Docker Desktop e confira se a integração WSL com o Ubuntu está ativa |
+| `Failed to start docker.service` (WSL) | Há um Docker Engine instalado **dentro** do Ubuntu, conflitando com o Docker Desktop. Remova-o: `sudo systemctl disable --now docker.service docker.socket` e `sudo apt remove -y docker.io docker-ce docker-ce-cli containerd.io docker-compose-v2 docker-compose-plugin`. Depois rode `wsl --shutdown` no PowerShell, reabra o Ubuntu e teste `docker run --rm hello-world` |
 | Tudo muito lento no WSL | O projeto está em `/mnt/c/...`. Clone em `~/` dentro do Ubuntu |
 | `tofu: command not found` ao commitar | Você editou um arquivo `.tf` sem ter o OpenTofu instalado. Instale-o (etapa 6) |

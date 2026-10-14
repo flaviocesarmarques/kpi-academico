@@ -104,9 +104,17 @@ if command -v docker >/dev/null 2>&1; then
   else
     printf "  %s✘%s %-22s %s\n" "$VERMELHO" "$FIM" "docker (serviço)" "instalado, mas parado ou sem permissão"
     FALTANDO_OBRIGATORIO=1
-    PENDENCIAS+=("docker (serviço): $(dica \
-      "inicie o Docker (Docker Desktop no Windows, ou: sudo systemctl start docker) e confirme 'docker run --rm hello-world'; sem sudo: sudo usermod -aG docker \$USER e reabra a sessão" \
-      "abra o aplicativo Docker Desktop e aguarde ficar 'running'")")
+    if [[ "$SO" == "wsl" ]]; then
+      PENDENCIAS+=("docker (serviço): no WSL use o Docker Desktop do Windows, não um Docker instalado no Ubuntu. Abra o Docker Desktop, ative Settings → Resources → WSL integration → Ubuntu e clique em Apply & restart. Se houver Docker instalado no Ubuntu, remova-o (veja docs/pre-requisitos.md, 'Problemas comuns'). Depois, no PowerShell: wsl --shutdown, e reabra o Ubuntu")
+    else
+      PENDENCIAS+=("docker (serviço): $(dica \
+        "sudo systemctl start docker e confirme 'docker run --rm hello-world'; sem sudo: sudo usermod -aG docker \$USER e reabra a sessão" \
+        "abra o aplicativo Docker Desktop e aguarde ficar 'running'")")
+    fi
+  fi
+  if [[ "$SO" == "wsl" ]] && dpkg -l docker.io docker-ce 2>/dev/null | grep -q '^ii'; then
+    printf "  %s●%s %-22s %s\n" "$AMARELO" "$FIM" "docker (Ubuntu)" "Docker Engine instalado no Ubuntu: conflita com o Docker Desktop"
+    PENDENCIAS+=("docker (Ubuntu): remova o Docker do Ubuntu e use só o Docker Desktop: sudo systemctl disable --now docker.service docker.socket; sudo apt remove -y docker.io docker-ce docker-ce-cli containerd.io docker-compose-v2 docker-compose-plugin")
   fi
   if docker compose version >/dev/null 2>&1; then
     printf "  %s✔%s %-22s %s\n" "$VERDE" "$FIM" "docker compose" "$(docker compose version --short 2>/dev/null)"
