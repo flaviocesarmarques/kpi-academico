@@ -42,7 +42,7 @@ def atingimento(valor: float, meta: float, polaridade: Polaridade) -> float:
     - Menor é melhor: meta / valor (evasão de 8% com meta de 10% = 125%).
     """
     if polaridade is Polaridade.MAIOR_MELHOR:
-        bruto = ATINGIMENTO_MAXIMO if meta == 0 else valor / meta * 10
+        bruto = ATINGIMENTO_MAXIMO if meta == 0 else valor / meta * 100
     else:
         bruto = ATINGIMENTO_MAXIMO if valor == 0 else meta / valor * 100
     return round(min(max(bruto, 0.0), ATINGIMENTO_MAXIMO), 1)
