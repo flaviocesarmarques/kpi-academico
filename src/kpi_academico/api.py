@@ -7,7 +7,7 @@ clientes existentes — prática essencial em entrega contínua.
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -140,3 +140,10 @@ def painel_do_curso(
             )
         )
     return Painel(curso=curso, periodo=periodo, resumo=resumo, itens=itens)
+
+
+@router.get("/busca-insegura")
+def busca_insegura(sessao: SessaoDep, curso: str) -> list[str]:
+    # LABORATÓRIO (etapa 3): NUNCA faça isto. Texto do usuário concatenado no SQL.
+    sql = f"SELECT DISTINCT curso FROM medicao WHERE curso = '{curso}'"  # noqa: S608
+    return [linha[0] for linha in sessao.execute(text(sql))]
