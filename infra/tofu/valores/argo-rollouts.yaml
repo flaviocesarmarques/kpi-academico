@@ -6,5 +6,8 @@ dashboard:
 controller:
   metrics:
     enabled: true
+    # O ServiceMonitor é um recurso do Prometheus Operator (CRD instalada pelo
+    # kube-prometheus-stack). Sem a observabilidade, a CRD não existe e o Helm
+    # falharia com "no matches for kind ServiceMonitor". Por isso é condicional.
     serviceMonitor:
-      enabled: true
+      enabled: ${monitorar}

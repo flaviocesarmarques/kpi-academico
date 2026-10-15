@@ -114,6 +114,26 @@
         - docker_existente.rc != 0
         - em_wsl
 
+    # O Docker Desktop (integração WSL) pode deixar em /usr/local/bin links
+    # simbólicos para /mnt/wsl/docker-desktop/... (somente leitura), às vezes
+    # QUEBRADOS: "kubectl: command not found" e "Destination ... is not writable".
+    # Removemos os links para instalar a versão fixa da trilha no lugar.
+    - name: Verificar destinos dos binários únicos
+      ansible.builtin.stat:
+        path: "{{ destino_binarios }}/{{ item }}"
+        follow: false
+      loop: [kubectl, k3d, sops, argocd, cosign, kubectl-argo-rollouts]
+      register: destinos
+
+    - name: Remover links simbólicos nos destinos (ex. kubectl do Docker Desktop)
+      ansible.builtin.file:
+        path: "{{ item.stat.path }}"
+        state: absent
+      loop: "{{ destinos.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+      when: item.stat.islnk | default(false)
+
     - name: Binários únicos (download com versão fixa)
       ansible.builtin.get_url:
         url: "{{ item.url }}"
