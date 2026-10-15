@@ -48,7 +48,7 @@ configMapGenerator:
       labels:
         grafana_dashboard: "1"
 
-images:
-  - name: kpi-academico
-    newName: ghcr.io/flaviocesarmarques/kpi-academico # ajustado por scripts/configurar-repo.sh
-    newTag: 0.1.0
+# Sem "images:" aqui DE PROPÓSITO. A base usa o nome genérico "kpi-academico" e
+# cada overlay define registro e versão. Se a base já trocasse o nome, o
+# "images: name: kpi-academico" dos overlays não encontraria mais a imagem e a
+# versão do overlay seria IGNORADA em silêncio (bug real, corrigido na etapa 7).
