@@ -56,7 +56,12 @@ resource "helm_release" "argo_rollouts" {
   namespace        = "argo-rollouts"
   create_namespace = true
   atomic           = true
-  values           = [file("${local.valores}/argo-rollouts.yaml")]
+  values = [templatefile("${local.valores}/argo-rollouts.yaml", {
+    monitorar = var.habilitar_observabilidade
+  })]
+  # Com a observabilidade ligada, as CRDs do Prometheus Operator precisam existir
+  # ANTES do ServiceMonitor do Rollouts. Com ela desligada, a dependência é inócua.
+  depends_on = [helm_release.kube_prometheus_stack]
 }
 
 # ---------------------------------------------------------------------------
