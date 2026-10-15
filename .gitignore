@@ -40,3 +40,4 @@ reports/
 
 # Cache local do ansible-lint
 .ansible/
+infra/tofu/terraform.tfvars
