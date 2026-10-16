@@ -5,7 +5,7 @@
 # o diff do PR mostra QUAL segredo mudou sem revelar o conteúdo.
 #
 # 1. Gere a chave:              make segredos-chave   (cria age.key — NÃO versionar!)
-# 2. Cole a chave PÚBLICA (age1...) abaixo, no lugar de AGE-PUBLIC-KEY-AQUI.
+# 2. Cole a chave PÚBLICA (age1...) abaixo, no lugar de age1qgxd4gm3c23ckjq83ltu639y6rtgwn5uzdaw4zhq0emafqdjy56qswgnvz.
 # 3. Crie o segredo:            scripts/criar-segredos.sh dev
 # 4. Aplique no cluster:        make segredos-aplicar
 #
@@ -19,4 +19,4 @@
 creation_rules:
   - path_regex: deploy/secrets/.*\.enc\.yaml$
     encrypted_regex: ^(data|stringData)$
-    age: AGE-PUBLIC-KEY-AQUI
+    age: age1qgxd4gm3c23ckjq83ltu639y6rtgwn5uzdaw4zhq0emafqdjy56qswgnvz
