@@ -10,7 +10,7 @@ resources:
 images:
   - name: kpi-academico
     newName: ghcr.io/flaviocesarmarques/kpi-academico
-    newTag: 0.3.1 # ← alterado pelo pipeline; não edite à mão
+    newTag: 0.3.2 # ← alterado pelo pipeline; não edite à mão
 patches:
   - target: {kind: Rollout, name: kpi-api}
     patch: |
