@@ -72,6 +72,19 @@ jobs:
         run: |
           mkdir -p render
           kubectl kustomize "deploy/overlays/${{ matrix.ambiente }}" > "render/${{ matrix.ambiente }}.yaml"
+      - name: Conferir a versão da imagem renderizada (overlay realmente aplicado)
+        # Pega o caso em que o Kustomize ignora o "newTag" do overlay em silêncio:
+        # todas as imagens da aplicação devem sair com a versão declarada nele.
+        env:
+          AMBIENTE: ${{ matrix.ambiente }}
+        run: |
+          esperada="$(yq '.images[] | select(.name == "kpi-academico") | .newTag' "deploy/overlays/${AMBIENTE}/kustomization.yaml")"
+          encontradas="$(grep -oE 'kpi-academico[^ "]*:[^ "]+' "render/${AMBIENTE}.yaml" | sort -u)"
+          echo "Esperada: ${esperada}"; echo "Renderizadas:"; echo "${encontradas}"
+          if [ -z "${encontradas}" ] || echo "${encontradas}" | grep -vq ":${esperada}$"; then
+            echo "::error::A versão renderizada difere da declarada no overlay ${AMBIENTE} (${esperada})."
+            exit 1
+          fi
       - name: Validar schemas (inclui CRDs do Argo Rollouts e Prometheus Operator)
         run: |
           docker run --rm -v "$PWD/render:/render:ro" ghcr.io/yannh/kubeconform:v0.8.0 \
