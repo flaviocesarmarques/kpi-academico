@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.2](https://github.com/flaviocesarmarques/kpi-academico/compare/v0.3.1...v0.3.2) (2026-10-16)
+
+
+### Correções
+
+* **deploy:** versão da imagem do overlay era ignorada pelo Kustomize ([#32](https://github.com/flaviocesarmarques/kpi-academico/issues/32)) ([60df3f6](https://github.com/flaviocesarmarques/kpi-academico/commit/60df3f6d722c811f135b80964901223aef67c9f0))
+
 ## [0.3.1](https://github.com/flaviocesarmarques/kpi-academico/compare/v0.3.0...v0.3.1) (2026-10-14)
 
 
