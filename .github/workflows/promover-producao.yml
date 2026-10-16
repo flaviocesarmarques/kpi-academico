@@ -28,15 +28,23 @@ jobs:
     timeout-minutes: 10
     environment: producao # ← aprovação humana acontece aqui
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read # quem escreve é o token do GitHub App (menor privilégio)
       packages: read
-      id-token: write
     env:
       VERSAO: ${{ inputs.versao }}
       IMAGEM: ghcr.io/${{ github.repository_owner }}/kpi-academico
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Token do GitHub App (o PR de promoção dispara o CI sozinho)
+        id: app
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
       - name: Normalizar nome da imagem (minúsculas)
         run: echo "IMAGEM=${IMAGEM,,}" >> "$GITHUB_ENV"
       - name: Validar formato da versão (evita injeção via input)
@@ -52,6 +60,7 @@ jobs:
         run: yq -i '(.images[] | select(.name == "kpi-academico")).newTag = strenv(VERSAO)' deploy/overlays/prod/kustomization.yaml
       - uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
+          token: ${{ steps.app.outputs.token }}
           sign-commits: true # commits assinados pelo GitHub (exigido pelo ruleset)
           branch: gitops/prod-${{ inputs.versao }}
           commit-message: "chore(deploy): prod -> ${{ inputs.versao }}"

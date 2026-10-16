@@ -56,6 +56,7 @@ resource "helm_release" "argo_rollouts" {
   namespace        = "argo-rollouts"
   create_namespace = true
   atomic           = true
+  timeout          = 600 # 1ª instalação baixa imagens: o padrão de 5 min é curto no WSL
   values = [templatefile("${local.valores}/argo-rollouts.yaml", {
     monitorar = var.habilitar_observabilidade
   })]
@@ -118,6 +119,7 @@ resource "helm_release" "alloy" {
   version    = var.versoes_charts["alloy"]
   namespace  = "observabilidade"
   atomic     = true
+  timeout    = 600 # 1ª instalação baixa imagens: o padrão de 5 min é curto no WSL
   values     = [file("${local.valores}/alloy.yaml")]
   depends_on = [helm_release.loki]
 }
@@ -130,6 +132,7 @@ resource "helm_release" "tempo" {
   version    = var.versoes_charts["tempo"]
   namespace  = "observabilidade"
   atomic     = true
+  timeout    = 600 # 1ª instalação baixa imagens: o padrão de 5 min é curto no WSL
   values     = [file("${local.valores}/tempo.yaml")]
   depends_on = [helm_release.kube_prometheus_stack]
 }
