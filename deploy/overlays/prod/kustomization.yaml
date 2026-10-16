@@ -5,18 +5,15 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: kpi-prod
-
 resources:
   - ../../base
   - hpa.yaml
-
 images:
   - name: kpi-academico
     newName: ghcr.io/flaviocesarmarques/kpi-academico
-    newTag: 0.1.0 # ← alterado pelo pipeline de promoção; não edite à mão
-
+    newTag: 0.3.2 # ← alterado pelo pipeline de promoção; não edite à mão
 patches:
-  - target: { kind: Rollout, name: kpi-api }
+  - target: {kind: Rollout, name: kpi-api}
     patch: |
       - op: replace
         path: /spec/replicas
@@ -32,12 +29,12 @@ patches:
           - setWeight: 66
           - pause: { duration: 5m }
           - setWeight: 100
-  - target: { kind: Ingress, name: kpi-api }
+  - target: {kind: Ingress, name: kpi-api}
     patch: |
       - op: replace
         path: /spec/rules/0/host
         value: kpi.localhost
-  - target: { kind: ConfigMap, name: kpi-config }
+  - target: {kind: ConfigMap, name: kpi-config}
     patch: |
       - op: replace
         path: /data/KPI_AMBIENTE
